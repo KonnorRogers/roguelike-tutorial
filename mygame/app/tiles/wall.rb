@@ -70,7 +70,7 @@ module App
       }
 
       attr_sprite
-      # attr_accessor :type, :direction
+      attr_accessor :type, :direction
 
       def initialize(direction:, type:, **kwargs)
         super(**kwargs)
@@ -78,6 +78,10 @@ module App
         @direction = direction
         @type = type
         update_self
+      end
+
+      def collideable?
+        true
       end
 
       def update_self

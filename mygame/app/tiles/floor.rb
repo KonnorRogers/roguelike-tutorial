@@ -11,10 +11,19 @@ module App
         }
       }
 
+      attr_accessor :cost
+
       def initialize(type:, **kwargs)
         super(**kwargs)
         @type = type
+
+        # cost for algorithm purposes.
+        @cost = 1
         set_sprite
+      end
+
+      def collideable?
+        false
       end
 
       def set_sprite

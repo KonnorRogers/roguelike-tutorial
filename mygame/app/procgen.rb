@@ -1,5 +1,171 @@
+require "app/rectangular_room"
+require "app/tiles/floor"
+require "app/tiles/wall"
+require "app/entities/enemy"
+require "app/dungeon"
+
 module App
   module Procgen
+    def self.generate_dungeon(
+      max_rooms:,
+      room_min_size:,
+      room_max_size:,
+      map_width:,
+      map_height:,
+      max_monsters_per_room:,
+      player:
+    )
+      dungeon = App::Dungeon.new(w: map_width, h: map_height, player: player)
+
+      # @type [Array<Room>]
+      rooms = []
+
+
+      max_rooms.times do
+        # need to use Numeric#rand because Kernel#rand doesn't support ranges in mruby. Numeric#rand is patched by DR.
+        room_width = Numeric.rand(room_min_size..room_max_size)
+        room_height = Numeric.rand(room_min_size..room_max_size)
+
+        x = Numeric.rand(0..dungeon.w - room_width - 1)
+        y = Numeric.rand(0..dungeon.h - room_height - 1)
+
+        # "RectangularRoom" class makes rectangles easier to work with
+        new_room = App::RectangularRoom.new(x: x, y: y, w: room_width, h: room_height)
+
+        # Run through the other rooms and see if they intersect with this one.
+        if rooms.any? { |other_room| new_room.intersects?(other_room) }
+          next # This room intersects, so go to the next attempt.
+        end
+
+        # If there are no intersections then the room is valid.
+
+        # Dig out this rooms inner area.
+        generate_room(new_room, tiles: dungeon.tiles)
+
+        if rooms.length == 0
+          # The first room, where the player starts.
+          player.x, player.y = new_room.center
+        else # All rooms after the first.
+          # Dig out a tunnel between this room and the previous one.
+          generate_tunnel(rooms[-1].center, new_room.center, tiles: dungeon.tiles)
+        end
+
+        generate_entities_for_room(room: new_room, dungeon: dungeon, max_monsters: max_monsters_per_room)
+
+        # Finally, append the new room to the list.
+        rooms << new_room
+      end
+
+      dungeon.flat_tiles = dungeon.tiles.flatten.compact
+      dungeon
+    end
+
+    def self.generate_room(room, tiles:)
+      room.w.times do |x|
+        room.h.times do |y|
+          tile = nil
+          # if x == 0 && y == 0
+          #   # bottom left
+          #   tile = Tiles::Wall.new(type: :brick, direction: :bottom_left)
+          # elsif x == 0 && y < room.h - 1
+          #   # middle left
+          #   tile = Tiles::Wall.new(type: :brick, direction: :middle_left)
+          # elsif x == 0 && y == room.h - 1
+          #   # top left
+          #   tile = Tiles::Wall.new(type: :brick, direction: :top_left)
+          # elsif (x > 0 && x < room.w - 1) && y == 0
+          #   # bottom middle
+          #   tile = Tiles::Wall.new(type: :brick, direction: :bottom_middle)
+          # elsif x == room.w - 1 && y == 0
+          #   # bottom right
+          #   tile = Tiles::Wall.new(type: :brick, direction: :bottom_right)
+          # elsif x == room.w - 1 && y == room.h - 1
+          #   # top right
+          #   tile = Tiles::Wall.new(type: :brick, direction: :top_right)
+          # elsif (x >= 0 && x < room.w - 1) && y == room.h - 1
+          #   # top middle
+          #   tile = Tiles::Wall.new(type: :brick, direction: :top_middle)
+          # elsif x == room.w - 1 && y < room.h - 1
+          #   # middle right
+          #   tile = Tiles::Wall.new(type: :brick, direction: :middle_right)
+          # else
+          # end
+
+          if !tile
+            tile = Tiles::Floor.new(type: :blank)
+          end
+
+          tile.x = room.x + x
+          tile.y = room.y + y
+          tile.w = 1
+          tile.h = 1
+
+          tiles[x + room.x] ||= []
+          tiles[x + room.x][y + room.y] = tile
+        end
+      end
+    end
+
+    def self.generate_entities_for_room(room:, dungeon:, max_monsters:)
+      number_of_monsters = Numeric.rand(0..max_monsters)
+
+      number_of_monsters.times do
+        inner_x, inner_y = room.inner
+        x = Numeric.rand(inner_x)
+        y = Numeric.rand(inner_y)
+
+        entity_at_location = dungeon.entities.any? { |entity| entity.x == x && entity.y == y }
+        if !entity_at_location
+          entity = nil
+          if Numeric.rand < 0.8
+            # Orc
+            entity = App::Entities::Enemy.new(type: :orc)
+          else
+            # Troll
+            entity = App::Entities::Enemy.new(type: :troll)
+          end
+
+          entity.x = x
+          entity.y = y
+          dungeon.entities << entity
+        end
+      end
+    end
+
+
+    def self.generate_tunnel(tunnel_start, tunnel_end, tiles:)
+      prev_x = nil
+      prev_y = nil
+      Procgen.tunnel_between(tunnel_start, tunnel_end).each do |coords|
+        x, y = coords
+        tiles[x] ||= []
+
+        # calc distance between x
+        if prev_x && prev_x - x != 0
+          # we're going horizontal. Walls need to be above / below.
+          # add_tile(App::Tiles::Wall.new(x: x, y: y + 1, type: :brick, direction: :top_middle), tiles: tiles)
+          # add_tile(App::Tiles::Wall.new(x: x, y: y - 1, type: :brick, direction: :bottom_middle), tiles: tiles)
+        elsif prev_y && prev_y - y != 0
+          # we're going vertical. Walls need to be left / right.
+          # add_tile(App::Tiles::Wall.new(x: x + 1, y: y, type: :brick, direction: :middle_right), tiles: tiles)
+          # add_tile(App::Tiles::Wall.new(x: x - 1, y: y, type: :brick, direction: :middle_left), tiles: tiles)
+        end
+
+        tile = App::Tiles::Floor.new(x: x, y: y, type: :blank)
+        add_tile(tile, tiles: tiles)
+
+        prev_x = x
+        prev_y = y
+      end
+    end
+
+    def self.add_tile(tile, tiles:)
+      tiles[tile.x] ||= []
+      tiles[tile.x][tile.y] = tile
+      tile.w = 1
+      tile.h = 1
+    end
+
     # Creates a tunnel between 2 rooms
     def self.tunnel_between(start, finish)
       # Return an L-shaped tunnel between these two points.

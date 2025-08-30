@@ -30,7 +30,6 @@ module App
     def tick(args)
       @scene_manager.tick(args)
 
-      args.outputs.debug << "#{@scene_manager.current_scene}"
       if args.inputs.keyboard.key_down.close_square_brace
         next_scene = @scene_manager.current_scene == :play_scene ? :spritesheet_scene : :play_scene
         @scene_manager.next_scene = next_scene

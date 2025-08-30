@@ -12,14 +12,15 @@ module App
       room_max_size:,
       map_width:,
       map_height:,
-      max_monsters_per_room:,
-      player:
+      max_monsters_per_room:
     )
-      dungeon = App::Dungeon.new(w: map_width, h: map_height, player: player)
+      dungeon = App::Dungeon.new(w: map_width, h: map_height)
+      dungeon.player = App::Entities::Player.new(dungeon: dungeon)
+      player = dungeon.player
+      dungeon.entities << player
 
       # @type [Array<Room>]
       rooms = []
-
 
       max_rooms.times do
         # need to use Numeric#rand because Kernel#rand doesn't support ranges in mruby. Numeric#rand is patched by DR.
@@ -56,7 +57,7 @@ module App
         rooms << new_room
       end
 
-      dungeon.flat_tiles = dungeon.tiles.flatten.compact
+      dungeon.flat_tiles = dungeon.tiles.map { |_, hash| hash.values }.flatten
       dungeon
     end
 
@@ -100,7 +101,7 @@ module App
           tile.w = 1
           tile.h = 1
 
-          tiles[x + room.x] ||= []
+          tiles[x + room.x] ||= {}
           tiles[x + room.x][y + room.y] = tile
         end
       end
@@ -119,10 +120,10 @@ module App
           entity = nil
           if Numeric.rand < 0.8
             # Orc
-            entity = App::Entities::Enemy.new(type: :orc)
+            entity = App::Entities::Enemy.new(dungeon: dungeon, type: :orc)
           else
             # Troll
-            entity = App::Entities::Enemy.new(type: :troll)
+            entity = App::Entities::Enemy.new(dungeon: dungeon, type: :troll)
           end
 
           entity.x = x
@@ -132,13 +133,12 @@ module App
       end
     end
 
-
     def self.generate_tunnel(tunnel_start, tunnel_end, tiles:)
       prev_x = nil
       prev_y = nil
       Procgen.tunnel_between(tunnel_start, tunnel_end).each do |coords|
         x, y = coords
-        tiles[x] ||= []
+        tiles[x] ||= {}
 
         # calc distance between x
         if prev_x && prev_x - x != 0
@@ -160,7 +160,7 @@ module App
     end
 
     def self.add_tile(tile, tiles:)
-      tiles[tile.x] ||= []
+      tiles[tile.x] ||= {}
       tiles[tile.x][tile.y] = tile
       tile.w = 1
       tile.h = 1

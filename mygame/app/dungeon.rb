@@ -1,19 +1,19 @@
 require "app/tiles/wall"
+require "app/entities/player"
 
 module App
   class Dungeon
     attr_accessor :w, :h, :tiles, :flat_tiles, :explored_tiles, :visible_tiles, :player, :entities, :visible_entities
 
-    def initialize(w:, h:, player:)
+    def initialize(w:, h:)
       @w = w
       @h = h
 
-      @player = player
-      @entities = [
-        @player
-      ]
+      @entities = []
       @visible_entities = []
-      @tiles = []
+
+      # since we use `hash[k][v]` we don't wanna fill bogus spots with `nil`
+      @tiles = {}
       @flat_tiles = []
       @explored_tiles = []
     end
@@ -23,7 +23,9 @@ module App
     end
 
     def in_bounds?(rect)
-      Geometry.find_all_intersect_rect(rect, @flat_tiles).length > 0
+      collision = @tiles[rect.x]
+      collision = collision[rect.y] if collision
+      collision != nil
     end
 
     def out_of_bounds?(rect)
@@ -31,8 +33,8 @@ module App
     end
 
     def collisions(rect)
-      collideable_tiles = (@flat_tiles + @entities).select(&:collideable?)
-      Geometry.find_all_intersect_rect(rect, collideable_tiles)
+      collideable_tiles = (@flat_tiles + @entities.reject { |e| e == rect }).select(&:collideable?)
+      collideable_tiles.select { |tile| tile.x == rect.x && tile.y == rect.y }
     end
 
     def update_field_of_view
@@ -46,6 +48,7 @@ module App
 
       visible_tiles = Geometry.find_all_intersect_rect(field_of_view, @flat_tiles)
       visible_entities = Geometry.find_all_intersect_rect(field_of_view, @entities)
+      visible_entities.each { |entity| entity.viewed = true }
       @explored_tiles.concat(visible_tiles)
       @explored_tiles.uniq!
       @visible_tiles = visible_tiles

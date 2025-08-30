@@ -11,14 +11,14 @@ module App
         }
       }
 
-      attr_accessor :cost
+      attr_accessor :movement_cost
 
       def initialize(type:, **kwargs)
         super(**kwargs)
         @type = type
 
-        # cost for algorithm purposes.
-        @cost = 1
+        @movement_cost = 1
+
         set_sprite
       end
 

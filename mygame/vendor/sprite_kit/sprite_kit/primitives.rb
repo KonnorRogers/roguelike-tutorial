@@ -61,22 +61,20 @@ module SpriteKit
     end
 
     def self.borders(rect, padding: nil, border_width: 1, color: { r: 0, b: 0, g: 0, a: 255 })
-      if padding && padding.is_a?(Numeric) && padding > 0
+      if padding && padding.is_a?(Numeric) && padding >= 0
         padding = {
           top: padding,
           right: padding,
           bottom: padding,
           left: padding
         }
-      end
-
-      if padding.is_a?(Hash)
-        # rect = rect.merge({
-        #   x: rect.x + padding.left,
-        #   y: rect.y + padding.bottom,
-        #   w: rect.w + padding.left + padding.right,
-        #   h: rect.h + padding.top + padding.bottom
-        # })
+      else
+        padding = {
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0
+        }
       end
 
       {

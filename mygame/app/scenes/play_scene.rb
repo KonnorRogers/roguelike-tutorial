@@ -1,5 +1,6 @@
 require "vendor/sprite_kit/sprite_kit.rb"
 require "app/procgen"
+require "app/ui/health_bar"
 
 module App
   module Scenes
@@ -11,7 +12,10 @@ module App
 
       def initialize(...)
         super(...)
+        reset
+      end
 
+      def reset
         @camera = SpriteKit::Camera.new
         @camera_path = :camera
 
@@ -22,7 +26,6 @@ module App
         max_rooms = 30
         max_monsters_per_room = 2
 
-        @player = App::Entities::Player.new
         @dungeon = App::Procgen.generate_dungeon(
           max_rooms: max_rooms,
           room_min_size: room_min_size,
@@ -30,21 +33,27 @@ module App
           map_height: map_height,
           map_width: map_width,
           max_monsters_per_room: max_monsters_per_room,
-          player: @player,
         )
 
+        @graph = App::Pathfinding::Graph.new(
+          cells: @dungeon.tiles,
+          entities: @dungeon.entities
+        )
+        @player = @dungeon.player
         @camera.target_x = @player.x * TILE_SIZE
         @camera.target_y = @player.y * TILE_SIZE
 
-        @visible_tiles = []
+        @health_bar = App::Ui::HealthBar.new(entity: @player, x: 72, y: 72.from_top, w: 300, h: 36)
+
+        @update_fov = nil
         @show_all_tiles = false
       end
 
       def input
         keyboard = @inputs.keyboard
 
-        if keyboard.key_down.period
-          @show_all_tiles = !@show_all_tiles
+        if @player.dead?
+          return
         end
 
         @did_move = if keyboard.key_down.left_arrow
@@ -55,16 +64,23 @@ module App
                       @player.move_up(@dungeon)
                     elsif keyboard.key_down.down_arrow
                       @player.move_down(@dungeon)
+                    else
+                      false
                     end
 
         # used for rendering FOV
-        @requires_update = @did_move || @visible_tiles.length == 0 # for first render, check if there's any visible tiles.
+        @update_fov = @update_fov.nil? || @did_move # for first render, check if there's any visible tiles.
+
+        if keyboard.key_down.period
+          @show_all_tiles = !@show_all_tiles
+          @update_fov = true
+        end
 
         if @did_move
           @dungeon.entities.each do |entity|
             next if entity == @player
 
-            entity.take_turn
+            entity.take_turn(@graph)
           end
         end
 
@@ -80,6 +96,7 @@ module App
         rt.w = viewport.w
         rt.h = viewport.h
         rt.background_color = [0,0,0,255]
+        # rt.clear_before_render = false
         rt
       end
 
@@ -105,7 +122,7 @@ module App
       def calc
         calc_camera
 
-        if @requires_update
+        if @update_fov
           @dungeon.update_field_of_view
         end
       end
@@ -120,40 +137,115 @@ module App
       end
 
       def render
-        camera_render_target
         @draw_buffer.primitives << { **@camera.viewport, path: @camera_path }
 
-        if !@requires_update
+        @draw_buffer.primitives.concat(@health_bar.prefab)
+        # @outputs.debug << "Enemies: #{(@dungeon.entities.length - 1)}"
+        # @outputs.debug << "Tiles: #{@dungeon.flat_tiles.length}"
+        # @outputs.debug << "Size: #{@dungeon.w} x #{@dungeon.h}"
+        @draw_buffer[:top_layer].concat(@gtk.framerate_diagnostics_primitives.map do |primitive|
+          # primitive.x = @args.grid.w - 500 + primitive.x
+          primitive.y = (@args.grid.h * -1) + 90 + primitive.y
+          primitive.scale_quality = 2
+          primitive
+        end)
+
+        if @player.dead?
+          render_game_over_screen
+        end
+
+        if !@update_fov
           return
         end
 
+        camera_render_target
         if @show_all_tiles
           @draw_buffer[@camera_path].concat(@dungeon.flat_tiles.map do |tile|
             scale_for_screen(tile.serialize)
           end)
 
-          @draw_buffer[@camera_path].concat(@dungeon.entities.map { |entity| scale_for_screen(entity.serialize) })
+          entities = @dungeon.entities
+            .sort_by(&:draw_order)
+            .map { |entity| scale_for_screen(entity.serialize) }
+          @draw_buffer[@camera_path].concat(entities)
         else
-          @draw_buffer[@camera_path].concat(@dungeon.visible_tiles.map do |tile|
+          tiles = @dungeon.visible_tiles.map do |tile|
             scale_for_screen(tile.serialize)
-          end)
+          end
 
           # # Tiles explored, but out of view.
-          out_of_view_explored_tiles = @dungeon.explored_tiles.reject { |tile| @visible_tiles.include?(tile) }
-          @draw_buffer[@camera_path].concat(out_of_view_explored_tiles.map do |tile|
-            serialized_tile = tile.serialize.merge({ a: 128 })
+          out_of_view_explored_tiles = Array(@dungeon.explored_tiles).reject { |tile| @dungeon.visible_tiles.include?(tile) }
+
+          tiles.concat(out_of_view_explored_tiles.map do |tile|
+            serialized_tile = tile.serialize.merge!({ a: 128 })
             scale_for_screen(serialized_tile)
-          end.flatten)
+          end)
 
-          @draw_buffer[@camera_path].concat(@dungeon.visible_entities.map { |entity| scale_for_screen(entity.serialize) })
+          @draw_buffer[@camera_path].concat(Geometry.find_all_intersect_rect(@camera.viewport, tiles))
+
+          # (out_of_view_explored_tiles.map do |tile|
+          # end.flatten)
+
+          visible_entities = @dungeon.visible_entities
+            .sort_by(&:draw_order)
+            .map { |entity| scale_for_screen(entity.serialize) }
+
+          @draw_buffer[@camera_path].concat(visible_entities)
         end
+      end
 
-        @top_layer.scale_quality = 2
-        @draw_buffer[:top_layer].concat(@gtk.framerate_diagnostics_primitives.map do |primitive|
-          primitive.x = @args.grid.w - 500 + primitive.x
-          primitive.scale_quality = 2
-          primitive
-        end)
+      def render_game_over_screen
+        w = 600
+        h = 400
+        x = (Grid.w / 2) - (w / 2)
+        y = (Grid.h / 2).from_top - (h / 2)
+        border_width = 2
+
+        game_over_background = {
+          x: x + border_width,
+          y: y + border_width,
+          w: w - (border_width * 2),
+          h: h - (border_width * 2),
+          r: 0,
+          b: 0,
+          g: 0,
+          a: 200,
+          primitive_marker: :sprite,
+          path: :pixel
+        }
+        game_over_borders = ::SpriteKit::Primitives.borders({
+          x: x,
+          y: y,
+          h: h,
+          w: w,
+        }, padding: 0, color: { r: 255, b: 255, g: 255, a: 255 }).values
+        game_over_label = {
+          x: x + (w / 2),
+          y: y + (h / 2),
+          text: "Game Over.",
+          anchor_x: 0.5,
+          anchor_y: 0,
+          size_px: 80,
+          r: 255,
+          b: 255,
+          g: 255,
+          a: 255,
+          primitive_marker: :label
+        }
+        try_again_label = game_over_label.merge({
+          y: game_over_label.y - 120,
+          size_px: 44,
+          text: "Click to play again!"
+        })
+        @draw_buffer.primitives.concat(game_over_borders).concat([
+          game_over_background,
+          game_over_label,
+          try_again_label
+        ])
+
+        if @inputs.mouse.click
+          reset
+        end
       end
     end
   end

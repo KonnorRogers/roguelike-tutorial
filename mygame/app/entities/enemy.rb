@@ -1,5 +1,6 @@
 require "app/entities/entity"
 require "app/entities/mixins/fighter"
+require "app/pathfinding/a_star"
 
 module App
   module Entities
@@ -27,16 +28,22 @@ module App
       ENEMY_SPRITES.each { |_key, hash| hash[:path] ||= App::SPRITESHEET_PATH }
 
 
-      prepend Mixins::Fighter
+      include Mixins::Fighter
 
-      attr_accessor :type, :entity_type
+      attr_accessor :type, :entity_type, :viewed
+
+      RANDOM_MOVEMENTS = [
+        :left,
+        :right,
+        :up,
+        :down
+      ]
 
       def initialize(type:, w: 1, h: 1, x: nil, y: nil, **kwargs)
         super(**kwargs)
 
         @type = type
         @entity_type = :enemy
-        set_sprite
 
         @w = w
         @h = h
@@ -48,10 +55,65 @@ module App
         @power = 1
         @defense = 0
         @speed = 1
+
+        @viewed = false
+
+        set_sprite
       end
 
-      def take_turn
-        puts("The #{self.type} wonders when it will get to take a real turn.")
+      def attack(entity:)
+        if entity == @dungeon.player
+          entity.health -= @power
+          true
+        else
+          false
+        end
+      end
+
+      def health=(val)
+        super(val)
+
+        if dead?
+          set_sprite
+          @collideable = false
+          @movement_cost = 0
+        end
+      end
+
+      def take_turn(graph)
+        # don't try to move if not found by player.
+        return false if !@viewed
+
+        return false if dead?
+
+        path = []
+        max_move_attempts = 1
+
+        if @viewed
+          max_move_attempts = 8
+          # puts("The #{self.type} wonders when it will get to take a real turn.")
+          target = { x: @dungeon.player.x, y: @dungeon.player.y }
+          start = { x: @x, y: @y }
+
+          a_star = App::Pathfinding::AStar.new(start: start, target: target, graph: graph)
+          a_star.calc
+
+          # if a path couldn't be calculated, make it move randomly.
+          path = a_star.path
+        end
+
+        if path.length <= 0
+          path = RANDOM_MOVEMENTS.shuffle
+        end
+
+        move_attempts = 1
+        for direction in path
+          did_move = move(@dungeon, direction: direction)
+          break if did_move
+          break if move_attempts >= max_move_attempts
+
+          move_attempts += 1
+        end
       end
 
       def set_sprite
@@ -61,6 +123,11 @@ module App
         @source_h = sprite.source_h
         @source_w = sprite.source_w
         @path = sprite.path
+
+        if dead?
+          @source_x = 0
+          @source_y = 102
+        end
       end
     end
   end

@@ -3,7 +3,9 @@ require "app/entities/mixins/fighter"
 module App
   module Entities
     class Player < Entity
-      prepend Mixins::Fighter
+      include Mixins::Fighter
+
+      attr_accessor :type, :entity_type, :viewed
 
       def initialize(...)
         super(...)
@@ -18,12 +20,35 @@ module App
         @speed = 1
 
         @entity_type = :player
+        @type = :player
+        @viewed = true
+        @movement_cost = 0
+        set_sprite
+      end
+
+      def attack(entity:)
+        if entity.is_a?(Enemy)
+          entity.health -= @power
+          true
+        else
+          false
+        end
+      end
+
+      def health=(val)
+        super(val)
         set_sprite
       end
 
       def set_sprite
-        @source_x = 306
-        @source_y = 204
+        if dead?
+          @source_x = 391
+          @source_y = 204
+        else
+          @source_x = 306
+          @source_y = 204
+        end
+
         @source_h = 16
         @source_w = 16
         @path = App::SPRITESHEET_PATH

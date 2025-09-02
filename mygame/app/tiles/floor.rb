@@ -1,6 +1,14 @@
 module App
   module Tiles
     class Floor < SpriteKit::Sprite
+      FLOOR_ENUM = {
+        floor__blank: :floor__blank
+      }.freeze
+
+      FLOOR_LEGEND = {
+        floor__blank: proc { Floor.new(type: :blank) }
+      }.freeze
+
       FLOOR_SPRITES = {
         blank: {
           source_x: 0,

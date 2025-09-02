@@ -15,7 +15,7 @@ module App
 
         @health = 5
         @max_health = 5
-        @power = 1
+        @power = 400
         @defense = 0
         @speed = 1
 
@@ -28,11 +28,18 @@ module App
 
       def attack(entity:)
         if entity.is_a?(Enemy)
-          entity.health -= @power
+          entity.take_damage(@power)
           true
         else
           false
         end
+      end
+
+      def take_damage(damage)
+        self.health -= damage
+
+        entity = @engine.scale_for_screen(self.serialize)
+        @engine.floating_text.add("#{damage}", entity: entity, color: {r: 255, g: 0, b: 0, a: 255})
       end
 
       def health=(val)

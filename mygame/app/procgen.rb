@@ -7,6 +7,7 @@ require "app/dungeon"
 module App
   module Procgen
     def self.generate_dungeon(
+      engine:,
       max_rooms:,
       room_min_size:,
       room_max_size:,
@@ -15,7 +16,8 @@ module App
       max_monsters_per_room:
     )
       dungeon = App::Dungeon.new(w: map_width, h: map_height)
-      dungeon.player = App::Entities::Player.new(dungeon: dungeon)
+      engine.dungeon = dungeon
+      dungeon.player = App::Entities::Player.new(engine: engine)
       player = dungeon.player
       dungeon.entities << player
 
@@ -51,13 +53,18 @@ module App
           generate_tunnel(rooms[-1].center, new_room.center, tiles: dungeon.tiles)
         end
 
-        generate_entities_for_room(room: new_room, dungeon: dungeon, max_monsters: max_monsters_per_room)
+        generate_entities_for_room(room: new_room, engine: engine, max_monsters: max_monsters_per_room)
 
         # Finally, append the new room to the list.
         rooms << new_room
       end
 
-      dungeon.flat_tiles = dungeon.tiles.map { |_, hash| hash.values }.flatten
+
+      # Wait to generate walls until the whole dungeon is generated.
+      dungeon.walls = generate_walls(dungeon.tiles)
+
+      dungeon.flat_tiles = Array(dungeon.tiles).map { |_, hash| hash.values }.flatten
+      Array(dungeon.flat_tiles).concat(Array(dungeon.walls).map { |_, hash| hash.values }.flatten)
       dungeon
     end
 
@@ -107,7 +114,7 @@ module App
       end
     end
 
-    def self.generate_entities_for_room(room:, dungeon:, max_monsters:)
+    def self.generate_entities_for_room(room:, engine:, max_monsters:)
       number_of_monsters = Numeric.rand(0..max_monsters)
 
       number_of_monsters.times do
@@ -115,20 +122,20 @@ module App
         x = Numeric.rand(inner_x)
         y = Numeric.rand(inner_y)
 
-        entity_at_location = dungeon.entities.any? { |entity| entity.x == x && entity.y == y }
+        entity_at_location = engine.dungeon.entities.any? { |entity| entity.x == x && entity.y == y }
         if !entity_at_location
           entity = nil
           if Numeric.rand < 0.8
             # Orc
-            entity = App::Entities::Enemy.new(dungeon: dungeon, type: :orc)
+            entity = App::Entities::Enemy.new(engine: engine, type: :orc)
           else
             # Troll
-            entity = App::Entities::Enemy.new(dungeon: dungeon, type: :troll)
+            entity = App::Entities::Enemy.new(engine: engine, type: :troll)
           end
 
           entity.x = x
           entity.y = y
-          dungeon.entities << entity
+          engine.dungeon.entities << entity
         end
       end
     end
@@ -166,6 +173,13 @@ module App
       tile.h = 1
     end
 
+    def self.add_wall(wall, walls:)
+      walls[wall.x] ||= {}
+      walls[wall.x][wall.y] = wall
+      wall.w = 1
+      wall.h = 1
+    end
+
     # Creates a tunnel between 2 rooms
     def self.tunnel_between(start, finish)
       # Return an L-shaped tunnel between these two points.
@@ -194,6 +208,63 @@ module App
       end
 
       tunnel_coords
+    end
+
+    def self.generate_walls(tiles)
+      walls = {}
+
+      tiles.each do |x, hash|
+        right_tile = tiles[x + 1]
+        left_tile = tiles[x - 1]
+
+        hash.each do |y, tile|
+          center_tile = tiles[x]
+
+          if left_tile == nil
+            # Need to find the max_y and do that N times
+            add_wall(App::Tiles::Wall.new(x: x - 1, y: y, type: :brick, direction: :middle_middle), walls: walls)
+          end
+
+          if right_tile == nil
+            # Need to find the max_y and do that N times
+            add_wall(App::Tiles::Wall.new(x: x + 1, y: y, type: :brick, direction: :middle_middle), walls: walls)
+          end
+
+
+          if left_tile && left_tile[y] == nil
+            add_wall(App::Tiles::Wall.new(x: x - 1, y: y, type: :brick, direction: :middle_middle), walls: walls)
+          end
+
+          if left_tile && left_tile[y - 1] == nil
+            add_wall(App::Tiles::Wall.new(x: x - 1, y: y - 1, type: :brick, direction: :middle_middle), walls: walls)
+          end
+
+          if left_tile && left_tile[y + 1] == nil
+            add_wall(App::Tiles::Wall.new(x: x - 1, y: y + 1, type: :brick, direction: :middle_middle), walls: walls)
+          end
+
+          if right_tile && right_tile[y] == nil
+            add_wall(App::Tiles::Wall.new(x: x + 1, y: y, type: :brick, direction: :middle_middle), walls: walls)
+          end
+
+          if right_tile && right_tile[y - 1] == nil
+            add_wall(App::Tiles::Wall.new(x: x + 1, y: y - 1, type: :brick, direction: :middle_middle), walls: walls)
+          end
+
+          if right_tile && right_tile[y + 1] == nil
+            add_wall(App::Tiles::Wall.new(x: x + 1, y: y + 1, type: :brick, direction: :middle_middle), walls: walls)
+          end
+
+          if center_tile[y + 1] == nil
+            add_wall(App::Tiles::Wall.new(x: x, y: y + 1, type: :brick, direction: :middle_middle), walls: walls)
+          end
+
+          if center_tile[y - 1] == nil
+            add_wall(App::Tiles::Wall.new(x: x, y: y - 1, type: :brick, direction: :middle_middle), walls: walls)
+          end
+        end
+      end
+      walls
     end
 
     # Bresenham's line algorithm implementation

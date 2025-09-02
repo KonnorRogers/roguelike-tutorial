@@ -3,7 +3,7 @@ require "app/entities/player"
 
 module App
   class Dungeon
-    attr_accessor :w, :h, :tiles, :flat_tiles, :explored_tiles, :visible_tiles, :player, :entities, :visible_entities
+    attr_accessor :w, :h, :tiles, :walls, :flat_tiles, :explored_tiles, :visible_tiles, :player, :entities, :visible_entities
 
     def initialize(w:, h:)
       @w = w
@@ -14,6 +14,7 @@ module App
 
       # since we use `hash[k][v]` we don't wanna fill bogus spots with `nil`
       @tiles = {}
+      @walls = {}
       @flat_tiles = []
       @explored_tiles = []
     end

@@ -3,7 +3,7 @@ module App
     class Graph
       attr_accessor :cells, :walls, :height, :width, :entities
 
-      def initialize(cells:, entities:, walls: [])
+      def initialize(cells:, entities:, walls: {})
         @cells = cells
         @entities = entities
         @walls = walls
@@ -54,7 +54,7 @@ module App
           # For each of that cells neighbors
           Array(adjacent_neighbors(current_frontier)).each do |neighbor|
             # That have not been visited and are not walls
-            unless @came_from.key?(neighbor) # or @grid.walls.key?(neighbor)
+            unless @came_from.key?(neighbor) or @graph.walls.key?(neighbor)
               # Add them to the frontier and mark them as visited
               @frontier << neighbor
               @came_from[neighbor] = current_frontier

@@ -11,11 +11,40 @@ module SpriteKit
       @render_targets = {}
     end
 
-    def [](key)
+    def add(*renderables, target: nil)
+      Array(renderables).each do |renderable|
+        if renderable.is_a?(Array)
+          if !target
+            @primitives.concat(renderable)
+          else
+            ary = fetch(target)
+            ary.concat(renderable)
+          end
+        else
+          if !target
+            @primitives << renderable
+          else
+            ary = fetch(target)
+            ary << renderable
+          end
+        end
+      end
+    end
+
+    def fetch(key)
       raise RenderTargetArgumentError.new(key.inspect + " is not a string or symbol") if !(key.is_a?(String) || key.is_a?(Symbol))
 
-      @render_targets[key] = [] if !@render_targets.key?(key)
+      if !@render_targets.key?(key)
+        ary = []
+        @render_targets[key] = ary
+        return ary
+      end
+
       @render_targets[key]
+    end
+
+    def [](key)
+      fetch(key)
     end
 
     def []=(key, value)

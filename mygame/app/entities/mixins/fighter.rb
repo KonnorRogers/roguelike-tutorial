@@ -41,6 +41,10 @@ module App
           @health
         end
 
+        def take_damage(damage)
+          @health -= damage
+        end
+
         def health=(val)
           @health = val.clamp(0, @max_health)
         end

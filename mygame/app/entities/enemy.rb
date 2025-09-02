@@ -61,9 +61,17 @@ module App
         set_sprite
       end
 
+      def take_damage(damage)
+        self.health -= damage
+
+        entity = @engine.scale_for_screen(self.serialize)
+        @engine.floating_text.add("#{damage}", entity: entity, color: {r: 255, g: 255, b: 255, a: 255})
+      end
+
       def attack(entity:)
         if entity == @dungeon.player
-          entity.health -= @power
+          entity.take_damage(@power)
+
           true
         else
           false
@@ -80,7 +88,7 @@ module App
         end
       end
 
-      def take_turn(graph)
+      def take_turn
         # don't try to move if not found by player.
         return false if !@viewed
 
@@ -95,7 +103,7 @@ module App
           target = { x: @dungeon.player.x, y: @dungeon.player.y }
           start = { x: @x, y: @y }
 
-          a_star = App::Pathfinding::AStar.new(start: start, target: target, graph: graph)
+          a_star = App::Pathfinding::AStar.new(start: start, target: target, graph: @engine.graph)
           a_star.calc
 
           # if a path couldn't be calculated, make it move randomly.

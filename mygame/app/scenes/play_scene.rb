@@ -1,6 +1,7 @@
 require "vendor/sprite_kit/sprite_kit.rb"
 require "app/procgen"
 require "app/ui/health_bar"
+require "app/floating_text"
 
 module App
   module Scenes
@@ -8,7 +9,7 @@ module App
       MOVE_X = 16
       MOVE_Y = 16
 
-      attr_accessor :dungeon
+      attr_accessor :dungeon, :camera, :graph, :player, :healthbar, :floating_text, :game_log
 
       def initialize(...)
         super(...)
@@ -27,6 +28,7 @@ module App
         max_monsters_per_room = 2
 
         @dungeon = App::Procgen.generate_dungeon(
+          engine: self,
           max_rooms: max_rooms,
           room_min_size: room_min_size,
           room_max_size: room_max_size,
@@ -35,8 +37,11 @@ module App
           max_monsters_per_room: max_monsters_per_room,
         )
 
+        @floating_text = FloatingText.new(draw_buffer: @draw_buffer, target: @camera_path)
+
         @graph = App::Pathfinding::Graph.new(
           cells: @dungeon.tiles,
+          walls: @dungeon.walls,
           entities: @dungeon.entities
         )
         @player = @dungeon.player
@@ -44,7 +49,6 @@ module App
         @camera.target_y = @player.y * TILE_SIZE
 
         @health_bar = App::Ui::HealthBar.new(entity: @player, x: 72, y: 72.from_top, w: 300, h: 36)
-
         @update_fov = nil
         @show_all_tiles = false
       end
@@ -53,6 +57,7 @@ module App
         keyboard = @inputs.keyboard
 
         if @player.dead?
+          @did_move = false
           return
         end
 
@@ -76,18 +81,11 @@ module App
           @update_fov = true
         end
 
-        if @did_move
-          @dungeon.entities.each do |entity|
-            next if entity == @player
-
-            entity.take_turn(@graph)
-          end
-        end
-
         @camera.target_x = @player.x * TILE_SIZE
         @camera.target_y = @player.y * TILE_SIZE
 
         handle_camera_zoom
+
       end
 
       def camera_render_target
@@ -104,11 +102,14 @@ module App
         # Zoom
         if @inputs.keyboard.key_down.equal_sign || @inputs.keyboard.key_down.plus
           @camera.target_scale += 0.25
+          @update_fov = true
         elsif @inputs.keyboard.key_down.minus
           @camera.target_scale -= 0.25
           @camera.target_scale = 0.25 if @camera.target_scale < 0.25
+          @update_fov = true
         elsif @inputs.keyboard.zero
           @camera.target_scale = 1
+          @update_fov = true
         end
       end
 
@@ -121,6 +122,14 @@ module App
 
       def calc
         calc_camera
+
+        if @did_move
+          @dungeon.entities.each do |entity|
+            next if entity == @player
+
+            entity.take_turn
+          end
+        end
 
         if @update_fov
           @dungeon.update_field_of_view
@@ -139,12 +148,21 @@ module App
       def render
         @draw_buffer.primitives << { **@camera.viewport, path: @camera_path }
 
+        @floating_text.add("Player.", entity: @player.serialize)
+
+        # entity.x -= @camera.offset_x
+        # entity.y += @camera.offset_y
+
+        # entity = scale_for_screen(@player.serialize)
+        # entity.x += (@camera.w / 2)
+        # @outputs.debug << "#{entity}"
+        # @outputs.debug << "#{@camera.serialize}"
+
         @draw_buffer.primitives.concat(@health_bar.prefab)
         # @outputs.debug << "Enemies: #{(@dungeon.entities.length - 1)}"
         # @outputs.debug << "Tiles: #{@dungeon.flat_tiles.length}"
         # @outputs.debug << "Size: #{@dungeon.w} x #{@dungeon.h}"
         @draw_buffer[:top_layer].concat(@gtk.framerate_diagnostics_primitives.map do |primitive|
-          # primitive.x = @args.grid.w - 500 + primitive.x
           primitive.y = (@args.grid.h * -1) + 90 + primitive.y
           primitive.scale_quality = 2
           primitive
@@ -154,44 +172,91 @@ module App
           render_game_over_screen
         end
 
-        if !@update_fov
-          return
-        end
+        # if !@update_fov
+          # @floating_text.flush
+          # return
+        # end
 
         camera_render_target
-        if @show_all_tiles
-          @draw_buffer[@camera_path].concat(@dungeon.flat_tiles.map do |tile|
-            scale_for_screen(tile.serialize)
-          end)
 
-          entities = @dungeon.entities
-            .sort_by(&:draw_order)
-            .map { |entity| scale_for_screen(entity.serialize) }
-          @draw_buffer[@camera_path].concat(entities)
+        if @show_all_tiles
+          render_all_tiles
         else
-          tiles = @dungeon.visible_tiles.map do |tile|
-            scale_for_screen(tile.serialize)
+          render_visible_tiles
+        end
+
+        @floating_text.flush
+      end
+
+      def render_all_tiles
+        # @outputs.debug << "FLAT_WALLS: " + @dungeon.flat_walls.map { |tile| tile.serialize }.to_s
+        @outputs.debug << "#{@dungeon.player.x}, #{@dungeon.player.y}"
+        tiles = []
+        max_x = @dungeon.player.x + 20
+        min_x = (@dungeon.player.x - 20).clamp(0, @dungeon.player.x)
+
+        max_y = @dungeon.player.y + 20
+        min_y = (@dungeon.player.y - 20).clamp(0, @dungeon.player.y)
+
+        x_range = (min_x..max_x)
+        y_range = (min_y..max_y)
+
+        x_range.each do |x|
+          x_tile = @dungeon.tiles[x]
+          x_wall = @dungeon.walls[x]
+
+          if !x_tile
+            x_tile = nil
+            x_wall = nil
+            next
           end
 
-          # # Tiles explored, but out of view.
-          out_of_view_explored_tiles = Array(@dungeon.explored_tiles).reject { |tile| @dungeon.visible_tiles.include?(tile) }
+          y_range.each do |y|
+            tile = x_tile[y]
+            wall = x_wall[y]
 
-          tiles.concat(out_of_view_explored_tiles.map do |tile|
-            serialized_tile = tile.serialize.merge!({ a: 128 })
-            scale_for_screen(serialized_tile)
-          end)
+            if tile
+              tiles << scale_for_screen(tile.serialize)
+            end
 
-          @draw_buffer[@camera_path].concat(Geometry.find_all_intersect_rect(@camera.viewport, tiles))
-
-          # (out_of_view_explored_tiles.map do |tile|
-          # end.flatten)
-
-          visible_entities = @dungeon.visible_entities
-            .sort_by(&:draw_order)
-            .map { |entity| scale_for_screen(entity.serialize) }
-
-          @draw_buffer[@camera_path].concat(visible_entities)
+            if wall
+              tiles << scale_for_screen(wall.serialize)
+            end
+          end
         end
+
+        # tiles = Array(@dungeon.flat_tiles).map do |tile|
+        #   scale_for_screen(tile.serialize)
+        # end
+
+        entities = Array(@dungeon.entities)
+          .map { |entity| scale_for_screen(entity.serialize) }
+
+        # @draw_buffer[@camera_path].concat(Geometry.find_all_intersect_rect(@camera.viewport, tiles))
+        @draw_buffer[@camera_path].concat(tiles)
+        @draw_buffer[@camera_path].concat(Geometry.find_all_intersect_rect(@camera.viewport, entities).sort_by(&:draw_order))
+      end
+
+      def render_visible_tiles
+        tiles = Array(@dungeon.visible_tiles).map do |tile|
+          scale_for_screen(tile.serialize)
+        end
+
+        # # Tiles explored, but out of view.
+        out_of_view_explored_tiles = Array(@dungeon.explored_tiles).reject { |tile| @dungeon.visible_tiles.include?(tile) }
+
+        tiles.concat(Array(out_of_view_explored_tiles).map do |tile|
+          serialized_tile = tile.serialize.merge!({ a: 128 })
+          scale_for_screen(serialized_tile)
+        end)
+
+        @draw_buffer[@camera_path].concat(Geometry.find_all_intersect_rect(@camera.viewport, tiles))
+
+        visible_entities = @dungeon.visible_entities
+          .sort_by(&:draw_order)
+          .map { |entity| scale_for_screen(entity.serialize) }
+
+        @draw_buffer[@camera_path].concat(visible_entities)
       end
 
       def render_game_over_screen

@@ -1,11 +1,13 @@
 module App
   module Entities
     class Entity < SpriteKit::Sprite
-      attr_accessor :dungeon, :movement_cost
+      attr_accessor :engine, :dungeon, :movement_cost
 
-
-      def initialize(dungeon:, **kwargs)
-        @dungeon = dungeon
+      def initialize(engine:, **kwargs)
+        super(engine: engine, **kwargs)
+        @engine = engine
+        @dungeon = engine.dungeon
+        # @combat_log = engine.combat_log
         @collideable = true
         @item = false
         @movement_cost = 10
@@ -17,6 +19,12 @@ module App
 
       def item?
         !!@item
+      end
+
+      def serialize
+        super.merge!({
+          draw_order: draw_order
+        })
       end
 
       def draw_order

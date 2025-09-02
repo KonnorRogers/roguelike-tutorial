@@ -40,6 +40,16 @@ module SpriteKit
       }
     end
 
+    def serialize
+      {
+        x: @x,
+        y: @y,
+        w: @w,
+        h: @h,
+        scale: @scale
+      }
+    end
+
     # @param {#x, #y, #w, #h, #scale} camera
     # @param {#x, #y, #w, #h} rect
     def self.to_world_space(camera, rect)

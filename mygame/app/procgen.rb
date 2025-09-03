@@ -72,32 +72,6 @@ module App
       room.w.times do |x|
         room.h.times do |y|
           tile = nil
-          # if x == 0 && y == 0
-          #   # bottom left
-          #   tile = Tiles::Wall.new(type: :brick, direction: :bottom_left)
-          # elsif x == 0 && y < room.h - 1
-          #   # middle left
-          #   tile = Tiles::Wall.new(type: :brick, direction: :middle_left)
-          # elsif x == 0 && y == room.h - 1
-          #   # top left
-          #   tile = Tiles::Wall.new(type: :brick, direction: :top_left)
-          # elsif (x > 0 && x < room.w - 1) && y == 0
-          #   # bottom middle
-          #   tile = Tiles::Wall.new(type: :brick, direction: :bottom_middle)
-          # elsif x == room.w - 1 && y == 0
-          #   # bottom right
-          #   tile = Tiles::Wall.new(type: :brick, direction: :bottom_right)
-          # elsif x == room.w - 1 && y == room.h - 1
-          #   # top right
-          #   tile = Tiles::Wall.new(type: :brick, direction: :top_right)
-          # elsif (x >= 0 && x < room.w - 1) && y == room.h - 1
-          #   # top middle
-          #   tile = Tiles::Wall.new(type: :brick, direction: :top_middle)
-          # elsif x == room.w - 1 && y < room.h - 1
-          #   # middle right
-          #   tile = Tiles::Wall.new(type: :brick, direction: :middle_right)
-          # else
-          # end
 
           if !tile
             tile = Tiles::Floor.new(type: :blank)
@@ -223,11 +197,15 @@ module App
           if left_tile == nil
             # Need to find the max_y and do that N times
             add_wall(App::Tiles::Wall.new(x: x - 1, y: y, type: :brick, direction: :middle_middle), walls: walls)
+            add_wall(App::Tiles::Wall.new(x: x - 1, y: y + 1, type: :brick, direction: :middle_middle), walls: walls)
+            add_wall(App::Tiles::Wall.new(x: x - 1, y: y - 1, type: :brick, direction: :middle_middle), walls: walls)
           end
 
           if right_tile == nil
             # Need to find the max_y and do that N times
             add_wall(App::Tiles::Wall.new(x: x + 1, y: y, type: :brick, direction: :middle_middle), walls: walls)
+            add_wall(App::Tiles::Wall.new(x: x + 1, y: y + 1, type: :brick, direction: :middle_middle), walls: walls)
+            add_wall(App::Tiles::Wall.new(x: x + 1, y: y - 1, type: :brick, direction: :middle_middle), walls: walls)
           end
 
 

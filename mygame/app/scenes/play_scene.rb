@@ -199,11 +199,11 @@ module App
 
         @draw_buffer[:top_layer].concat([
           {
-            x: 800.from_right - 16,
+            x: 500.from_right - 16,
             w: 750,
-            y: 50.from_top - 16,
-            h: 60,
-            r: 255,
+            y: 120.from_top,
+            h: 120,
+            r: 0,
             b: 0,
             g: 0,
             a: 255,
@@ -211,14 +211,29 @@ module App
             path: :solid
           },
           {
-            x: 800.from_right,
+            x: 500.from_right,
             y: 50.from_top,
-            text: "Hit '.' to show the full map and drop your framerate.",
+            text: "Hit '.' to show the full map",
             primitive_marker: :label,
             scale_quality: 2,
             anchor_x: 0,
             anchor_y: 0,
-            size_px: 30,
+            size_px: 26,
+            # blendmode_enum: 0,
+            r: 255,
+            b: 255,
+            g: 255,
+            a: 255
+          },
+          {
+            x: 500.from_right,
+            y: 100.from_top,
+            text: "Use '-' and '=' keys to zoom in / out",
+            primitive_marker: :label,
+            scale_quality: 2,
+            anchor_x: 0,
+            anchor_y: 0,
+            size_px: 26,
             # blendmode_enum: 0,
             r: 255,
             b: 255,

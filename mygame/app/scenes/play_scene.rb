@@ -183,12 +183,6 @@ module App
 
         @draw_buffer.primitives.concat(@health_bar.prefab)
 
-        @draw_buffer[:top_layer].concat(@gtk.framerate_diagnostics_primitives.map do |primitive|
-          primitive.y = (@args.grid.h * -1) + 90 + primitive.y
-          primitive.scale_quality = 2
-          primitive
-        end)
-
         if @player.dead?
           render_game_over_screen
         end
@@ -202,6 +196,46 @@ module App
         end
 
         @floating_text.flush
+
+        @draw_buffer[:top_layer].concat([
+          {
+            x: 800.from_right - 16,
+            w: 750,
+            y: 50.from_top - 16,
+            h: 60,
+            r: 255,
+            b: 0,
+            g: 0,
+            a: 255,
+            # blendmode_enum: 0,
+            path: :solid
+          },
+          {
+            x: 800.from_right,
+            y: 50.from_top,
+            text: "Hit '.' to show the full map and drop your framerate.",
+            primitive_marker: :label,
+            scale_quality: 2,
+            anchor_x: 0,
+            anchor_y: 0,
+            size_px: 30,
+            # blendmode_enum: 0,
+            r: 255,
+            b: 255,
+            g: 255,
+            a: 255
+          }
+        ])
+
+      end
+
+      def draw
+        super
+        @outputs[:top_layer].primitives.concat(@gtk.framerate_diagnostics_primitives.map do |primitive|
+          primitive.y = (@args.grid.h * -1) + 90 + primitive.y
+          primitive.scale_quality = 2
+          primitive
+        end)
       end
 
       def render_all_tiles

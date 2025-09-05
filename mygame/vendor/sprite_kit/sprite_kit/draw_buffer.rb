@@ -12,7 +12,7 @@ module SpriteKit
     end
 
     def add(*renderables, target: nil)
-      Array(renderables).each do |renderable|
+      Array.each(renderables) do |renderable|
         if renderable.is_a?(Array)
           if !target
             @primitives.concat(renderable)

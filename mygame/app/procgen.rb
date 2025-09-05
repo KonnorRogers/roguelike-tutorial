@@ -63,8 +63,8 @@ module App
       # Wait to generate walls until the whole dungeon is generated.
       dungeon.walls = generate_walls(dungeon.tiles)
 
-      dungeon.flat_tiles = Array(dungeon.tiles).map { |_, hash| hash.values }.flatten
-      Array(dungeon.flat_tiles).concat(Array(dungeon.walls).map { |_, hash| hash.values }.flatten)
+      dungeon.flat_tiles = dungeon.tiles.map { |_, hash| hash.values }.flatten
+      dungeon.flat_tiles.concat(dungeon.walls.map { |_, hash| hash.values }.flatten)
       dungeon
     end
 

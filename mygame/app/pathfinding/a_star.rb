@@ -40,7 +40,7 @@ module App
 
         entity_locations = {}
 
-        Array(@graph.entities).each do |entity|
+        Array.each(@graph.entities) do |entity|
           next if entity.dead?
 
           entity_locations["#{entity.x},#{entity.y}"] = entity
@@ -52,7 +52,7 @@ module App
           current_frontier = @frontier.shift
 
           # For each of that cells neighbors
-          Array(adjacent_neighbors(current_frontier)).each do |neighbor|
+          Array.each(adjacent_neighbors(current_frontier)) do |neighbor|
             # That have not been visited and are not walls
             unless @came_from.key?(neighbor) or @graph.walls.key?(neighbor)
               # Add them to the frontier and mark them as visited
@@ -73,7 +73,7 @@ module App
 
           # Sort the frontier so that cells that are in a zigzag pattern are prioritized over those in an line
           # Comment this line and let a path generate to see the difference
-          @frontier = Array(@frontier).sort_by do |cell|
+          @frontier = @frontier.sort_by do |cell|
             # cost_so_for + greedy_heuristic is weighted way heavier than proximity_to_start
             proximity_to_start(cell) + ((@cost_so_far[cell] + greedy_heuristic(cell)) * 1_000)
           end

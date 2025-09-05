@@ -41,7 +41,7 @@ module App
 
         @graph = App::Pathfinding::Graph.new(
           cells: @dungeon.tiles,
-          walls: @dungeon.walls,
+          walls: {},
           entities: @dungeon.entities
         )
         @player = @dungeon.player
@@ -54,7 +54,7 @@ module App
       end
 
       def update_scaled_tiles
-        @scaled_tiles = Array(@dungeon.flat_tiles).map { |tile| scale_for_screen(tile.serialize) }
+        @scaled_tiles = Array.map(@dungeon.flat_tiles) { |tile| scale_for_screen(tile.serialize) }
       end
 
       def input
@@ -138,7 +138,6 @@ module App
           end
         end
 
-
         if @camera_scale_changed
           update_scaled_tiles
         end
@@ -150,14 +149,14 @@ module App
       end
 
       def update_visible_tiles
-        @visible_tiles = Array(@dungeon.visible_tiles).map do |tile|
+        @visible_tiles = Array.map(@dungeon.visible_tiles) do |tile|
           scale_for_screen(tile.serialize)
         end
 
         # Tiles explored, but out of view.
         @out_of_view_explored_tiles = []
 
-        Array(@dungeon.explored_tiles).each do |tile|
+        Array.each(@dungeon.explored_tiles) do |tile|
           next if @dungeon.visible_tiles.include?(tile)
 
           serialized_tile = tile.serialize.merge!({ a: 128 })
@@ -177,6 +176,8 @@ module App
       end
 
       def render
+        @outputs.debug << "TILES: #{@dungeon.flat_tiles.length}"
+
         @draw_buffer.primitives << { **@camera.viewport, path: @camera_path }
 
         @floating_text.add("Player.", entity: @player.serialize)
@@ -254,11 +255,10 @@ module App
       end
 
       def render_all_tiles
-        entities = Array(@dungeon.entities)
-          .map { |entity| scale_for_screen(entity.serialize) }
+        entities = Array.map(@dungeon.entities) { |entity| scale_for_screen(entity.serialize) }
 
-        Array(@draw_buffer[@camera_path]).concat(Geometry.find_all_intersect_rect(@camera.viewport, @scaled_tiles))
-        Array(@draw_buffer[@camera_path]).concat(Geometry.find_all_intersect_rect(@camera.viewport, entities).sort_by(&:draw_order))
+        @draw_buffer[@camera_path].concat(Geometry.find_all_intersect_rect(@camera.viewport, @scaled_tiles))
+        @draw_buffer[@camera_path].concat(Geometry.find_all_intersect_rect(@camera.viewport, entities).sort_by(&:draw_order))
       end
 
       def render_visible_tiles

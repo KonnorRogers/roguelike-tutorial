@@ -99,7 +99,6 @@ module App
 
         if @viewed
           max_move_attempts = 8
-          # puts("The #{self.type} wonders when it will get to take a real turn.")
           target = { x: @dungeon.player.x, y: @dungeon.player.y }
           start = { x: @x, y: @y }
 

@@ -78,6 +78,28 @@ module SpriteKit
       self.class.to_screen_space(self, rect)
     end
 
+    # @param {#x, #y, #w, #h, #scale} camera
+    # @param {#x, #y, #w, #h} rect
+    def self.to_screen_space!(camera, rect)
+      x = rect.x * camera.scale - camera.x * camera.scale + (camera.w / 2)
+      rect.x = x
+
+      y = rect.y * camera.scale - camera.y * camera.scale + (camera.h / 2)
+      rect.y = y
+
+      w = rect.w * camera.scale
+      rect.w = w
+
+      h = rect.h * camera.scale
+      rect.h = h
+
+      rect
+    end
+
+    def to_screen_space!(rect)
+      self.class.to_screen_space!(self, rect)
+    end
+
     def viewport_world
       to_world_space(viewport)
     end

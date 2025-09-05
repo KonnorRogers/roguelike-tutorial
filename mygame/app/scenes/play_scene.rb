@@ -14,6 +14,23 @@ module App
       def initialize(...)
         super(...)
         reset
+        @benchmarks = {}
+      end
+
+      def bench(sym)
+        start_time = Time.now
+
+        yield if block_given?
+
+        end_time = Time.now - start_time
+
+        # Max:
+        # prev_end_time = @benchmarks[sym]
+        # @benchmarks[sym] ||= end_time
+        # @benchmarks[sym] = end_time if end_time > @benchmarks[sym]
+
+        # Current:
+        @benchmarks[sym] = end_time
       end
 
       def reset
@@ -41,7 +58,7 @@ module App
 
         @graph = App::Pathfinding::Graph.new(
           cells: @dungeon.tiles,
-          walls: {},
+          walls: @dungeon.walls,
           entities: @dungeon.entities
         )
         @player = @dungeon.player
@@ -51,45 +68,85 @@ module App
         @health_bar = App::Ui::HealthBar.new(entity: @player, x: 72, y: 72.from_top, w: 300, h: 36)
         @update_fov = nil
         @show_all_tiles = false
+        @scaled_tiles = []
+        update_scaled_tiles
       end
 
       def update_scaled_tiles
-        @scaled_tiles = Array.map(@dungeon.flat_tiles) { |tile| scale_for_screen(tile.serialize) }
+        idx = 0
+        loop do
+          break if idx > @dungeon.flat_tiles.length - 1
+
+          tile = @dungeon.flat_tiles[idx]
+          tile = tile.dup.tap do |t|
+            t.x = t.x * TILE_SIZE
+            t.y = t.y * TILE_SIZE
+            t.w = t.w * TILE_SIZE
+            t.h = t.h * TILE_SIZE
+          end
+          @scaled_tiles[idx] = @camera.to_screen_space!(tile)
+          idx += 1
+        end
+      end
+
+      def update_scaled_tiles
+        idx = 0
+        loop do
+          break if idx > @dungeon.flat_tiles.length - 1
+
+          tile = @dungeon.flat_tiles[idx]
+          tile = tile.dup.tap do |t|
+            t.x = t.x * TILE_SIZE
+            t.y = t.y * TILE_SIZE
+            t.w = t.w * TILE_SIZE
+            t.h = t.h * TILE_SIZE
+          end
+          @scaled_tiles[idx] = @camera.to_screen_space!(tile)
+          idx += 1
+        end
       end
 
       def input
-        keyboard = @inputs.keyboard
+        @camera_updated = false
 
-        if @player.dead?
-          @did_move = false
-          return
+        bench(:input) do
+          keyboard = @inputs.keyboard
+
+          if @player.dead?
+            @did_move = false
+            return
+          end
+
+          @did_move = if keyboard.key_down.left_arrow
+                        @player.move_left(@dungeon)
+                      elsif keyboard.key_down.right_arrow
+                        @player.move_right(@dungeon)
+                      elsif keyboard.key_down.up_arrow
+                        @player.move_up(@dungeon)
+                      elsif keyboard.key_down.down_arrow
+                        @player.move_down(@dungeon)
+                      elsif keyboard.key_down.space
+                        # Wait...
+                        true
+                      else
+                        false
+                      end
+
+          # used for rendering FOV
+          @update_fov = @update_fov.nil? || @did_move # for first render, check if there's any visible tiles.
+          @camera_updated = @did_move && @show_all_tiles
+
+          if keyboard.key_down.period
+            @show_all_tiles = !@show_all_tiles
+            @update_fov = true
+            @camera_updated = true
+          end
+
+          @camera.target_x = @player.x * TILE_SIZE
+          @camera.target_y = @player.y * TILE_SIZE
+
+          handle_camera_zoom
         end
-
-        @did_move = if keyboard.key_down.left_arrow
-                      @player.move_left(@dungeon)
-                    elsif keyboard.key_down.right_arrow
-                      @player.move_right(@dungeon)
-                    elsif keyboard.key_down.up_arrow
-                      @player.move_up(@dungeon)
-                    elsif keyboard.key_down.down_arrow
-                      @player.move_down(@dungeon)
-                    else
-                      false
-                    end
-
-        # used for rendering FOV
-        @update_fov = @update_fov.nil? || @did_move # for first render, check if there's any visible tiles.
-
-        if keyboard.key_down.period
-          @show_all_tiles = !@show_all_tiles
-          @update_fov = true
-          @camera_scale_changed = true
-        end
-
-        @camera.target_x = @player.x * TILE_SIZE
-        @camera.target_y = @player.y * TILE_SIZE
-
-        handle_camera_zoom
       end
 
       def camera_render_target
@@ -106,45 +163,46 @@ module App
         # Zoom
         if @inputs.keyboard.key_down.equal_sign || @inputs.keyboard.key_down.plus
           @camera.target_scale += 0.25
-          @camera_scale_changed = true
+          @camera_updated = true
           @update_fov = true
         elsif @inputs.keyboard.key_down.minus
           @camera.target_scale -= 0.25
           @camera.target_scale = 0.25 if @camera.target_scale < 0.25
-          @camera_scale_changed = true
+          @camera_updated = true
           @update_fov = true
         elsif @inputs.keyboard.zero
           @camera.target_scale = 1
-          @camera_scale_changed = true
+          @camera_updated = true
           @update_fov = true
         end
       end
 
       def calc_camera
-        ease = 1
-        @camera.scale += (@camera.target_scale - @camera.scale) * ease
-        @camera.x += (@camera.target_x - @camera.x) * ease
-        @camera.y += (@camera.target_y - @camera.y) * ease
+        @camera.scale += (@camera.target_scale - @camera.scale)
+        @camera.x += (@camera.target_x - @camera.x)
+        @camera.y += (@camera.target_y - @camera.y)
       end
 
       def calc
-        calc_camera
+        bench(:calc) do
+          calc_camera
 
-        if @did_move
-          @dungeon.entities.each do |entity|
-            next if entity == @player
+          if @did_move
+            @dungeon.entities.each do |entity|
+              next if entity == @player
 
-            entity.take_turn
+              entity.take_turn
+            end
           end
-        end
 
-        if @camera_scale_changed
-          update_scaled_tiles
-        end
+          if @update_fov
+            @dungeon.update_field_of_view
+            update_visible_tiles
 
-        if @update_fov
-          @dungeon.update_field_of_view
-          update_visible_tiles
+            if @show_all_tiles
+              update_scaled_tiles
+            end
+          end
         end
       end
 
@@ -176,77 +234,87 @@ module App
       end
 
       def render
-        @outputs.debug << "TILES: #{@dungeon.flat_tiles.length}"
+        bench(:render) do
+          @outputs.debug << "TILES: #{@dungeon.flat_tiles.length}"
+          # @outputs.debug << "OBJECTS:"
+          # ObjectSpace.count_objects.each do |k, v|
+          #   @outputs.debug << "#{k}: #{v}"
+          # end
 
-        @draw_buffer.primitives << { **@camera.viewport, path: @camera_path }
+          @draw_buffer.primitives << { **@camera.viewport, path: @camera_path }
 
-        @floating_text.add("Player.", entity: @player.serialize)
+          @draw_buffer.primitives.concat(@health_bar.prefab)
 
-        @draw_buffer.primitives.concat(@health_bar.prefab)
+          if @player.dead?
+            render_game_over_screen
+          end
 
-        if @player.dead?
-          render_game_over_screen
+          camera_render_target
+
+          if @show_all_tiles
+            render_all_tiles
+          else
+            render_visible_tiles
+          end
+
+          @floating_text.flush
+
+          # @draw_buffer[:top_layer].concat([
+          #   {
+          #     x: 500.from_right - 16,
+          #     w: 750,
+          #     y: 120.from_top,
+          #     h: 120,
+          #     r: 0,
+          #     b: 0,
+          #     g: 0,
+          #     a: 255,
+          #     # blendmode_enum: 0,
+          #     path: :solid
+          #   },
+          #   {
+          #     x: 500.from_right,
+          #     y: 50.from_top,
+          #     text: "Hit '.' to show the full map",
+          #     primitive_marker: :label,
+          #     scale_quality: 2,
+          #     anchor_x: 0,
+          #     anchor_y: 0,
+          #     size_px: 26,
+          #     # blendmode_enum: 0,
+          #     r: 255,
+          #     b: 255,
+          #     g: 255,
+          #     a: 255
+          #   },
+          #   {
+          #     x: 500.from_right,
+          #     y: 100.from_top,
+          #     text: "Use '-' and '=' keys to zoom in / out",
+          #     primitive_marker: :label,
+          #     scale_quality: 2,
+          #     anchor_x: 0,
+          #     anchor_y: 0,
+          #     size_px: 26,
+          #     # blendmode_enum: 0,
+          #     r: 255,
+          #     b: 255,
+          #     g: 255,
+          #     a: 255
+          #   }
+          # ])
         end
-
-        camera_render_target
-
-        if @show_all_tiles
-          render_all_tiles
-        else
-          render_visible_tiles
-        end
-
-        @floating_text.flush
-
-        @draw_buffer[:top_layer].concat([
-          {
-            x: 500.from_right - 16,
-            w: 750,
-            y: 120.from_top,
-            h: 120,
-            r: 0,
-            b: 0,
-            g: 0,
-            a: 255,
-            # blendmode_enum: 0,
-            path: :solid
-          },
-          {
-            x: 500.from_right,
-            y: 50.from_top,
-            text: "Hit '.' to show the full map",
-            primitive_marker: :label,
-            scale_quality: 2,
-            anchor_x: 0,
-            anchor_y: 0,
-            size_px: 26,
-            # blendmode_enum: 0,
-            r: 255,
-            b: 255,
-            g: 255,
-            a: 255
-          },
-          {
-            x: 500.from_right,
-            y: 100.from_top,
-            text: "Use '-' and '=' keys to zoom in / out",
-            primitive_marker: :label,
-            scale_quality: 2,
-            anchor_x: 0,
-            anchor_y: 0,
-            size_px: 26,
-            # blendmode_enum: 0,
-            r: 255,
-            b: 255,
-            g: 255,
-            a: 255
-          }
-        ])
 
       end
 
       def draw
-        super
+        bench(:draw) do
+          super
+        end
+        @outputs.debug << "Benchmarks: "
+        @benchmarks.each do |k, v|
+          @outputs.debug << "#{k}: #{(v * 1000).to_s}ms"
+        end
         @outputs[:top_layer].primitives.concat(@gtk.framerate_diagnostics_primitives.map do |primitive|
           primitive.y = (@args.grid.h * -1) + 90 + primitive.y
           primitive.scale_quality = 2
@@ -319,6 +387,7 @@ module App
           game_over_label,
           try_again_label
         ])
+
 
         if @inputs.mouse.click
           reset

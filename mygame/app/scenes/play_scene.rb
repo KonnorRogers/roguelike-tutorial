@@ -89,23 +89,6 @@ module App
         end
       end
 
-      def update_scaled_tiles
-        idx = 0
-        loop do
-          break if idx > @dungeon.flat_tiles.length - 1
-
-          tile = @dungeon.flat_tiles[idx]
-          tile = tile.dup.tap do |t|
-            t.x = t.x * TILE_SIZE
-            t.y = t.y * TILE_SIZE
-            t.w = t.w * TILE_SIZE
-            t.h = t.h * TILE_SIZE
-          end
-          @scaled_tiles[idx] = @camera.to_screen_space!(tile)
-          idx += 1
-        end
-      end
-
       def input
         @camera_updated = false
 
@@ -167,7 +150,7 @@ module App
           @update_fov = true
         elsif @inputs.keyboard.key_down.minus
           @camera.target_scale -= 0.25
-          @camera.target_scale = 0.25 if @camera.target_scale < 0.25
+          @camera.target_scale = 0.5 if @camera.target_scale < 0.5
           @camera_updated = true
           @update_fov = true
         elsif @inputs.keyboard.zero

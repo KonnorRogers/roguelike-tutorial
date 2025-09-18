@@ -21,7 +21,7 @@ module App
       @y = 20
       @x = Grid.w / 2
       @anchor_x = 0.5
-      @size_px = 32
+      @size_px = 24
       @h = @size_px * 5
       @w = 400
       @path = :game_log

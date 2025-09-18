@@ -61,16 +61,17 @@ module App
         set_sprite
       end
 
-      def take_damage(damage)
+      def take_damage(_attacker, damage)
         self.health -= damage
 
         entity = @engine.scale_for_screen(self.serialize)
         @engine.floating_text.add("#{damage}", entity: entity, color: {r: 255, g: 255, b: 255, a: 255})
+        @engine.game_log.log("You hit #{entity.type} for #{damage}", type: :enemy_hit)
       end
 
       def attack(entity:)
         if entity == @dungeon.player
-          entity.take_damage(@power)
+          entity.take_damage(self, @power)
 
           true
         else

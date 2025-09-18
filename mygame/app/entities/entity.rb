@@ -14,17 +14,17 @@ module App
       end
 
       def collideable?
-        !!@collideable
+        @collideable
       end
 
       def item?
-        !!@item
+        @item
       end
 
       def serialize
-        super.merge!({
-          draw_order: draw_order
-        })
+        hash = super
+        hash.draw_order = draw_order
+        hash
       end
 
       def draw_order

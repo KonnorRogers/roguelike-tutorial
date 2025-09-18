@@ -111,6 +111,10 @@ module App
         true
       end
 
+      def blocks_sight?
+        true
+      end
+
       def update_self
         sprite = WALL_SPRITES[@type][@direction]
         @source_x = sprite.source_x

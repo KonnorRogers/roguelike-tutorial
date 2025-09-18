@@ -65,6 +65,15 @@ module App
 
       dungeon.flat_tiles = dungeon.tiles.map { |_, hash| hash.values }.flatten
       dungeon.flat_tiles.concat(dungeon.walls.map { |_, hash| hash.values }.flatten)
+
+      dungeon.graph = App::Pathfinding::Graph.new(
+        cells: dungeon.tiles,
+        walls: dungeon.walls,
+        entities: dungeon.entities
+      )
+
+      dungeon.create_field_of_view
+
       dungeon
     end
 

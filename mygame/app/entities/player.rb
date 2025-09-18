@@ -28,18 +28,19 @@ module App
 
       def attack(entity:)
         if entity.is_a?(Enemy)
-          entity.take_damage(@power)
+          entity.take_damage(self, @power)
           true
         else
           false
         end
       end
 
-      def take_damage(damage)
+      def take_damage(attacker, damage)
         self.health -= damage
 
         entity = @engine.scale_for_screen(self.serialize)
         @engine.floating_text.add("#{damage}", entity: entity, color: {r: 255, g: 0, b: 0, a: 255})
+        @engine.game_log.log("#{attacker.type} hit you for #{damage}", type: :player_hit)
       end
 
       def health=(val)

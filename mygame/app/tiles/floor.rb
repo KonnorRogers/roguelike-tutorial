@@ -34,6 +34,10 @@ module App
         false
       end
 
+      def blocks_sight?
+        false
+      end
+
       def set_sprite
         sprite = FLOOR_SPRITES[@type]
 

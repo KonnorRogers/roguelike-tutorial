@@ -41,7 +41,7 @@ module App
           @health
         end
 
-        def take_damage(damage)
+        def take_damage(_attacker, damage)
           @health -= damage
         end
 

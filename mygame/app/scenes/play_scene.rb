@@ -2,6 +2,7 @@ require "vendor/sprite_kit/sprite_kit.rb"
 require "app/procgen"
 require "app/ui/health_bar"
 require "app/floating_text"
+require "app/game_log"
 
 module App
   module Scenes
@@ -25,12 +26,11 @@ module App
         end_time = Time.now - start_time
 
         # Max:
-        # prev_end_time = @benchmarks[sym]
-        # @benchmarks[sym] ||= end_time
-        # @benchmarks[sym] = end_time if end_time > @benchmarks[sym]
+        @benchmarks[sym] ||= end_time
+        @benchmarks[sym] = end_time if end_time > @benchmarks[sym]
 
         # Current:
-        @benchmarks[sym] = end_time
+        # @benchmarks[sym] = end_time
       end
 
       def reset
@@ -56,19 +56,18 @@ module App
 
         @floating_text = FloatingText.new(draw_buffer: @draw_buffer, target: @camera_path)
 
-        @graph = App::Pathfinding::Graph.new(
-          cells: @dungeon.tiles,
-          walls: @dungeon.walls,
-          entities: @dungeon.entities
-        )
+        @graph = @dungeon.graph
         @player = @dungeon.player
         @camera.target_x = @player.x * TILE_SIZE
         @camera.target_y = @player.y * TILE_SIZE
 
-        @health_bar = App::Ui::HealthBar.new(entity: @player, x: 72, y: 72.from_top, w: 300, h: 36)
+        @health_bar = App::Ui::HealthBar.new(entity: @player, x: 50, y: 50, w: 300, h: 36)
         @update_fov = nil
         @show_all_tiles = false
         @scaled_tiles = []
+        @visible_and_out_of_view_tiles = []
+
+        @game_log = GameLog.new
         update_scaled_tiles
       end
 
@@ -190,21 +189,32 @@ module App
       end
 
       def update_visible_tiles
-        @visible_tiles = Array.map(@dungeon.visible_tiles) do |tile|
-          scale_for_screen(tile.serialize)
+        @visible_and_out_of_view_tiles = []
+
+        idx = 0
+        loop do
+          break if idx > @dungeon.flat_tiles.length - 1
+
+          original_tile = @dungeon.flat_tiles[idx]
+
+          break if !original_tile
+
+          if !@dungeon.explored_tiles.has_key?(original_tile)
+            idx += 1
+            next
+          end
+
+          tile = original_tile.dup.tap do |t|
+            t.x = t.x * TILE_SIZE
+            t.y = t.y * TILE_SIZE
+            t.w = t.w * TILE_SIZE
+            t.h = t.h * TILE_SIZE
+            t.a = 128 if !@dungeon.visible_tiles.include?(original_tile)
+          end
+          @camera.to_screen_space!(tile)
+          @visible_and_out_of_view_tiles << tile
+          idx += 1
         end
-
-        # Tiles explored, but out of view.
-        @out_of_view_explored_tiles = []
-
-        Array.each(@dungeon.explored_tiles) do |tile|
-          next if @dungeon.visible_tiles.include?(tile)
-
-          serialized_tile = tile.serialize.merge!({ a: 128 })
-          @out_of_view_explored_tiles << scale_for_screen(serialized_tile)
-        end
-
-        @visible_and_out_of_view_tiles = @visible_tiles.concat(@out_of_view_explored_tiles)
       end
 
       def scale_for_screen(sprite)
@@ -217,6 +227,9 @@ module App
       end
 
       def render
+        @game_log.update
+        @game_log.render(@draw_buffer)
+
         bench(:render) do
           @outputs.debug << "TILES: #{@dungeon.flat_tiles.length}"
           # @outputs.debug << "OBJECTS:"
@@ -288,6 +301,7 @@ module App
           # ])
         end
 
+        @draw_buffer.primitives << @game_log
       end
 
       def draw
@@ -299,7 +313,7 @@ module App
           @outputs.debug << "#{k}: #{(v * 1000).to_s}ms"
         end
         @outputs[:top_layer].primitives.concat(@gtk.framerate_diagnostics_primitives.map do |primitive|
-          primitive.y = (@args.grid.h * -1) + 90 + primitive.y
+          primitive.x = 500.from_right + primitive.x
           primitive.scale_quality = 2
           primitive
         end)
@@ -313,7 +327,7 @@ module App
       end
 
       def render_visible_tiles
-        @draw_buffer[@camera_path].concat(Geometry.find_all_intersect_rect(@camera.viewport, @visible_and_out_of_view_tiles))
+        @draw_buffer[@camera_path].concat(@visible_and_out_of_view_tiles)
 
         visible_entities = @dungeon.visible_entities
           .sort_by(&:draw_order)

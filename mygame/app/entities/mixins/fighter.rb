@@ -37,12 +37,28 @@ module App
                       :power,
                       :speed
 
-        def health
-          @health
+        def heal(amount)
+          return 0 if @health == @max_health
+
+          new_hp_value = @health + amount
+
+          if new_hp_value > @max_health
+            new_hp_value = @max_health
+          end
+
+          amount_recovered = new_hp_value - @health
+
+          @health = new_hp_value
+
+          amount_recovered
         end
 
         def take_damage(_attacker, damage)
           @health -= damage
+        end
+
+        def health
+          @health
         end
 
         def health=(val)

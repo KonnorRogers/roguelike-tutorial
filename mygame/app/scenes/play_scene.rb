@@ -43,6 +43,7 @@ module App
         room_min_size = 6
         max_rooms = 30
         max_monsters_per_room = 2
+        max_items_per_room = 2
 
         @dungeon = App::Procgen.generate_dungeon(
           engine: self,
@@ -52,6 +53,7 @@ module App
           map_height: map_height,
           map_width: map_width,
           max_monsters_per_room: max_monsters_per_room,
+          max_items_per_room: max_items_per_room
         )
 
         @floating_text = FloatingText.new(draw_buffer: @draw_buffer, target: @camera_path)
@@ -172,6 +174,7 @@ module App
           if @did_move
             @dungeon.entities.each do |entity|
               next if entity == @player
+              next if entity.item?
 
               entity.take_turn
             end

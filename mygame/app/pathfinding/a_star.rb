@@ -41,6 +41,7 @@ module App
         entity_locations = {}
 
         Array.each(@graph.entities) do |entity|
+          next if entity.item?
           next if entity.dead?
 
           entity_locations["#{entity.x},#{entity.y}"] = entity

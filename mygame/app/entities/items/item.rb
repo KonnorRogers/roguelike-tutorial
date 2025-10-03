@@ -7,6 +7,11 @@ module App
         def initialize(...)
           super(...)
           @item = true
+          @collideable = false
+        end
+
+        def dead?
+          false
         end
       end
     end

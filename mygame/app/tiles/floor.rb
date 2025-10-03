@@ -45,6 +45,7 @@ module App
         @source_y = sprite.source_y
         @source_w = sprite.source_w
         @source_h = sprite.source_h
+        # @blendmode_enum = 2
         @path = sprite.path
       end
     end

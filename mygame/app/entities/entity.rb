@@ -1,7 +1,7 @@
 module App
   module Entities
     class Entity < SpriteKit::Sprite
-      attr_accessor :engine, :dungeon, :movement_cost
+      attr_accessor :engine, :dungeon, :movement_cost, :viewed
 
       def initialize(engine:, **kwargs)
         super(engine: engine, **kwargs)
@@ -9,9 +9,17 @@ module App
         @dungeon = engine.dungeon
         # @combat_log = engine.combat_log
         @collideable = true
-        @item = false
         @movement_cost = 10
+        @viewed = false
+        @item = false
       end
+
+      def serialize
+        super.merge!({
+          blendmode_enum: @blendmode_enum || 1
+        })
+      end
+
 
       def collideable?
         @collideable

@@ -126,6 +126,7 @@ module App
 
       @entities.each do |entity|
         # is_visible = entity.x ..(entity.x + entity.w)).include?(tile.x + tile.w) && (entity.y..(entity.y + entity.h)).include?(tile.y + tile.h)
+        # this only checks visibility of bottom_left.
         is_visible = entity.x == tile.x && entity.y == tile.y
 
         if is_visible

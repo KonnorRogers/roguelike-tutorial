@@ -2,6 +2,7 @@ require "app/rectangular_room"
 require "app/tiles/floor"
 require "app/tiles/wall"
 require "app/entities/enemy"
+require "app/entities/items/health_potion"
 require "app/dungeon"
 
 module App
@@ -13,7 +14,8 @@ module App
       room_max_size:,
       map_width:,
       map_height:,
-      max_monsters_per_room:
+      max_monsters_per_room:,
+      max_items_per_room:
     )
       dungeon = App::Dungeon.new(w: map_width, h: map_height)
       engine.dungeon = dungeon
@@ -53,12 +55,16 @@ module App
           generate_tunnel(rooms[-1].center, new_room.center, tiles: dungeon.tiles)
         end
 
-        generate_entities_for_room(room: new_room, engine: engine, max_monsters: max_monsters_per_room)
+        generate_entities_for_room(
+          room: new_room,
+          engine: engine,
+          max_monsters: max_monsters_per_room,
+          max_items: max_items_per_room
+        )
 
         # Finally, append the new room to the list.
         rooms << new_room
       end
-
 
       # Wait to generate walls until the whole dungeon is generated.
       dungeon.walls = generate_walls(dungeon.tiles)
@@ -97,8 +103,9 @@ module App
       end
     end
 
-    def self.generate_entities_for_room(room:, engine:, max_monsters:)
+    def self.generate_entities_for_room(room:, engine:, max_monsters:, max_items:)
       number_of_monsters = Numeric.rand(0..max_monsters)
+      number_of_items = Numeric.rand(0..max_items)
 
       number_of_monsters.times do
         inner_x, inner_y = room.inner
@@ -118,6 +125,31 @@ module App
 
           entity.x = x
           entity.y = y
+          engine.dungeon.entities << entity
+        end
+      end
+
+      number_of_items.times do
+        inner_x, inner_y = room.inner
+        x = Numeric.rand(inner_x)
+        y = Numeric.rand(inner_y)
+
+        entity_at_location = engine.dungeon.entities.any? { |entity| entity.x == x && entity.y == y }
+        if !entity_at_location
+          entity = nil
+          # if Numeric.rand < 0.8
+          #   # Orc
+          #   entity = App::Entities::Enemy.new(engine: engine, type: :orc)
+          # else
+          #   # Troll
+          #   entity = App::Entities::Enemy.new(engine: engine, type: :troll)
+          # end
+          entity = App::Entities::Items::HealthPotion.new(engine: engine, amount: 4)
+
+          entity.x = x
+          entity.y = y
+          entity.w = 1
+          entity.h = 1
           engine.dungeon.entities << entity
         end
       end

@@ -9,6 +9,7 @@ module App
       info: { r: 255, b: 255, g: 255, a: 255 },
       player_hit: { r: 255, b: 0, g: 0, a: 255 },
       enemy_hit: { r: 255, b: 255, g: 255, a: 255 },
+      hp_recover: { r: 0, b: 0, g: 255 }
     }
 
     def initialize

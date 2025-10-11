@@ -1,4 +1,4 @@
-/.dragonruby/
+.DS_Store
 /CHANGELOG-CURR.txt
 /CHANGELOG-PREV.txt
 /README.txt
@@ -20,3 +20,11 @@
 /mygame/errors
 /samples
 /builds
+/dragonruby-bind
+/dragonruby-ios-simulator.app/
+/dragonruby-ios.app/
+/dragonruby-replay
+/dragonruby-vrsim
+/ffmpeg
+/include/
+

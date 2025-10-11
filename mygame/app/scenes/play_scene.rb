@@ -1,8 +1,10 @@
 require "vendor/sprite_kit/sprite_kit.rb"
 require "app/procgen"
 require "app/ui/health_bar"
+require "app/ui/inventory"
 require "app/floating_text"
 require "app/game_log"
+require "app/ui/item_menu"
 
 module App
   module Scenes
@@ -63,7 +65,9 @@ module App
         @camera.target_x = @player.x * TILE_SIZE
         @camera.target_y = @player.y * TILE_SIZE
 
-        @health_bar = App::Ui::HealthBar.new(entity: @player, x: 50, y: 50, w: 300, h: 36)
+        @health_bar = App::Ui::HealthBar.new(entity: @player, x: 50, y: 50)
+        @inventory = App::Ui::Inventory.new(items: @player.inventory)
+        @item_menu = Ui::ItemMenu.new
         @update_fov = nil
         @show_all_tiles = false
         @scaled_tiles = []
@@ -71,6 +75,7 @@ module App
 
         @game_log = GameLog.new
         update_scaled_tiles
+        @show_inventory = false
       end
 
       def update_scaled_tiles
@@ -96,18 +101,58 @@ module App
         bench(:input) do
           keyboard = @inputs.keyboard
 
+          if @inputs.mouse.click
+            if @show_inventory
+              clicked_button = nil
+
+              if @item_menu.open
+                clicked_button = Geometry.find_all_intersect_rect(@inputs.mouse, @item_menu.rendered_buttons.values)[0]
+                if clicked_button == @item_menu.rendered_buttons[:drop]
+                  @player.drop(@item_menu.item)
+                end
+                if clicked_button == @item_menu.rendered_buttons[:use]
+                  @player.use(@item_menu.item)
+                end
+
+                if clicked_button == @item_menu.rendered_buttons[:throw]
+                  @player.throw(@item_menu.item)
+                end
+              end
+
+              clicked_item = Geometry.find_all_intersect_rect(@inputs.mouse, @inventory.rendered_items)[0]
+              if !clicked_button
+                if clicked_item
+                  @item_menu.item = clicked_item
+                  @item_menu.open = true
+                else
+                  @item_menu.open = false
+                end
+              end
+            end
+
+            if @inputs.mouse.intersect_rect?(@inventory.backpack_icon_bounding_box)
+              @show_inventory = !@show_inventory
+            end
+          end
+
+          if keyboard.key_down.b
+            @show_inventory = !@show_inventory
+          end
+
           if @player.dead?
             @did_move = false
             return
           end
 
-          @did_move = if keyboard.key_down.left_arrow
+          key_down = keyboard.key_down
+
+          @did_move = if key_down.left_arrow || key_down.a
                         @player.move_left(@dungeon)
-                      elsif keyboard.key_down.right_arrow
+                      elsif key_down.right_arrow || key_down.d
                         @player.move_right(@dungeon)
-                      elsif keyboard.key_down.up_arrow
+                      elsif key_down.up_arrow || key_down.w
                         @player.move_up(@dungeon)
-                      elsif keyboard.key_down.down_arrow
+                      elsif key_down.down_arrow || key_down.s
                         @player.move_down(@dungeon)
                       elsif keyboard.key_down.space
                         # Wait...
@@ -124,6 +169,11 @@ module App
             @show_all_tiles = !@show_all_tiles
             @update_fov = true
             @camera_updated = true
+          end
+
+          if keyboard.key_down.e
+            items_on_player = @dungeon.entities.select { |item| item.item? && item.x == @player.x && item.y == @player.y }
+            items_on_player.each { |item| @player.pickup(item) }
           end
 
           @camera.target_x = @player.x * TILE_SIZE
@@ -242,7 +292,23 @@ module App
 
           @draw_buffer.primitives << { **@camera.viewport, path: @camera_path }
 
+          bottom_menu = Layout.rect(row: Layout.row_count - 1, col: 1, h: 1, w: Layout.col_count / 4)
+          @health_bar.h = bottom_menu.h
+          @health_bar.w = bottom_menu.w
+          @health_bar.x = bottom_menu.x
+          @health_bar.y = bottom_menu.y
           @draw_buffer.primitives.concat(@health_bar.prefab)
+          @draw_buffer.primitives.concat(@inventory.render_backpack_icon)
+
+          if @show_inventory
+            @draw_buffer.primitives.concat(@inventory.render_inventory)
+          else
+            @item_menu.open = false
+          end
+
+          if @item_menu.open
+            @draw_buffer.primitives.concat(@item_menu.render)
+          end
 
           if @player.dead?
             render_game_over_screen
@@ -305,6 +371,10 @@ module App
         end
 
         @draw_buffer.primitives << @game_log
+
+        if Kernel.tick_count == 0
+          # @outputs.static_primitives << Layout.debug_primitives
+        end
       end
 
       def draw
@@ -387,6 +457,7 @@ module App
           game_over_label,
           try_again_label
         ])
+
 
 
         if @inputs.mouse.click

@@ -16,6 +16,7 @@ module App
               "@defense",
               "@power",
               "@speed",
+              "@inventory",
             ]
 
             unset_properties = []
@@ -35,7 +36,32 @@ module App
                       :max_health,
                       :defense,
                       :power,
-                      :speed
+                      :speed,
+                      :inventory,
+                      :max_inventory_size
+
+        def pickup(item)
+          # Find the index of the first nil element
+          first_nil_index = @inventory.find_index(nil)
+
+          # If a nil element is found, replace it
+          if first_nil_index
+            @inventory[first_nil_index] = item
+            @dungeon.entities.delete(item)
+            item.transparent = true
+            @engine.game_log.log("You picked up " + item.name)
+            item.set_sprite
+          end
+        end
+
+        def drop(index)
+          item = @inventory[index]
+          item.x = self.x
+          item.y = self.y
+          @dungeon.entities << item
+          item.transparent = false
+          @inventory[index] = nil
+        end
 
         def heal(amount)
           return 0 if @health == @max_health

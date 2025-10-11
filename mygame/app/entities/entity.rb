@@ -2,6 +2,7 @@ module App
   module Entities
     class Entity < SpriteKit::Sprite
       attr_accessor :engine, :dungeon, :movement_cost, :viewed
+      attr_accessor :center_x, :center_y, :center
 
       def initialize(engine:, **kwargs)
         super(engine: engine, **kwargs)

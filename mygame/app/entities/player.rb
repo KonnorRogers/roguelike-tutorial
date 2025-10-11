@@ -23,6 +23,8 @@ module App
         @type = :player
         @viewed = true
         @movement_cost = 0
+        @max_inventory_size = 25
+        @inventory = Array.new(@max_inventory_size)
         set_sprite
       end
 

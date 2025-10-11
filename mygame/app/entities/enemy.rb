@@ -57,6 +57,8 @@ module App
         @speed = 1
 
         @viewed = false
+        @inventory = Array.new(0)
+        @max_inventory_size = 0
 
         set_sprite
       end

@@ -17,7 +17,7 @@ module App
       end
 
       def health_text
-        "#{entity.health} / #{entity.max_health} (#{health_percentage}%)"
+        "#{entity.health} / #{entity.max_health}"
       end
 
       def health_percentage

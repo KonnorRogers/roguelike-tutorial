@@ -12,6 +12,26 @@ module App
           @collideable = false
         end
 
+        def pickup(consumer)
+          @engine.dungeon.entities.delete(self)
+
+          if consumer == @engine.player
+            @engine.game_log.log("You picked up " + self.name)
+          end
+        end
+
+        def drop(consumer)
+          @x = consumer.x
+          @y = consumer.y
+          @engine.dungeon.entities << self
+        end
+
+        def throw(consumer)
+        end
+
+        def use(consumer)
+        end
+
         def dead?
           false
         end

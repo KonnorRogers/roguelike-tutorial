@@ -107,25 +107,42 @@ module App
 
               if @item_menu.open
                 clicked_button = Geometry.find_all_intersect_rect(@inputs.mouse, @item_menu.rendered_buttons.values)[0]
+
+                item = @inventory.items[@item_menu.item_index]
+
                 if clicked_button == @item_menu.rendered_buttons[:drop]
-                  @player.drop(@item_menu.item)
+                  @player.drop(item)
+                  @item_menu.open = false
+                  @item_menu.item = nil
+                  @item_menu.item_index = nil
                 end
+
                 if clicked_button == @item_menu.rendered_buttons[:use]
-                  @player.use(@item_menu.item)
+                  @player.use(item)
+                  @item_menu.open = false
+                  @item_menu.item = nil
+                  @item_menu.item_index = nil
                 end
 
                 if clicked_button == @item_menu.rendered_buttons[:throw]
-                  @player.throw(@item_menu.item)
+                  @player.throw(item)
+                  @item_menu.open = false
+                  @item_menu.item = nil
+                  @item_menu.item_index = nil
                 end
               end
 
               clicked_item = Geometry.find_all_intersect_rect(@inputs.mouse, @inventory.rendered_items)[0]
               if !clicked_button
                 if clicked_item
+                  item_index = @inventory.rendered_items.find_index { |item| item == clicked_item }
+                  @item_menu.item_index = item_index
                   @item_menu.item = clicked_item
                   @item_menu.open = true
                 else
                   @item_menu.open = false
+                  @item_menu.item = nil
+                  @item_menu.item_index = nil
                 end
               end
             end

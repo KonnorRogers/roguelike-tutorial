@@ -46,21 +46,28 @@ module App
 
           # If a nil element is found, replace it
           if first_nil_index
+            item.pickup(self)
             @inventory[first_nil_index] = item
-            @dungeon.entities.delete(item)
-            item.transparent = true
-            @engine.game_log.log("You picked up " + item.name)
-            item.set_sprite
           end
         end
 
-        def drop(index)
-          item = @inventory[index]
-          item.x = self.x
-          item.y = self.y
-          @dungeon.entities << item
-          item.transparent = false
+        def drop(item)
+          return if !item
+
+          item.drop(self)
+          index = @inventory.find_index { |i| i == item }
           @inventory[index] = nil
+        end
+
+        def use(item)
+          return if !item
+
+          used = item.use(self)
+
+          if used
+            index = @inventory.find_index { |i| i == item }
+            @inventory[index] = nil
+          end
         end
 
         def heal(amount)

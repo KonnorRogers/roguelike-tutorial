@@ -51,17 +51,33 @@ module App
           set_sprite
         end
 
+        def pickup(consumer)
+          super(consumer)
+
+          @transparent = true
+          set_sprite
+        end
+
+        def drop(consumer)
+          super(consumer)
+          @transparent = false
+          set_sprite
+        end
+
         def use(consumer)
           amount_recovered = consumer.heal(self.amount)
 
           if amount_recovered > 0
-            @engine.floating_text.add("#{amount_recovered}", entity: entity, color: {r: 0, g: 255, b: 0, a: 255})
-            @engine.game_log.log("You recovered #{amount_recovered}", type: :recovered)
-            self.engine.message_log.add_message(
-                "You consume the Health Potion, and recover #{amount_recovered} HP!",
-                :hp_recover,
+            @engine.floating_text.add("#{amount_recovered}", entity: consumer, color: {r: 0, g: 255, b: 0, a: 255})
+            # @engine.game_log.log("You recovered #{amount_recovered}", type: :recovered)
+            @engine.game_log.log(
+                "You consume the #{@name}, and recover #{amount_recovered} HP!",
+                type: :hp_recover,
             )
+            return true
           end
+
+          false
         end
       end
     end

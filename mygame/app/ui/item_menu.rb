@@ -2,7 +2,7 @@
 module App
   module Ui
     class ItemMenu < SpriteKit::Sprite
-      attr_accessor :open, :item, :rendered_buttons
+      attr_accessor :open, :item, :rendered_buttons, :item_index
 
       SAFE_X_INSET = 50
       SAFE_Y_INSET = 50
@@ -10,6 +10,7 @@ module App
       def initialize(open: false, item: nil, w: 300, h: 300, **kwargs)
         @open = open
         @item = item
+        @item_index = nil
         @rendered_buttons = {
           drop: nil,
           use: nil,

@@ -40,16 +40,23 @@ module App
     def render(draw_buffer)
       render_target(draw_buffer.outputs)
       idx = 0
-      draw_buffer[@path].concat(@displayed_items.map do |item|
-        hash = item.merge({
-          y: 0,
-          x: 0,
-          anchor_y: idx,
-          anchor_x: 0,
-        })
-        idx -= 1
-        hash
-      end)
+      rendered_lines = []
+      line_length = 30
+      @displayed_items.each do |item|
+        wrapped_lines = String.wrapped_lines(item.text, line_length)
+        wrapped_lines.reverse.each do |str|
+          rendered_lines << item.merge({
+            y: 0,
+            x: 0,
+            text: str,
+            anchor_y: idx,
+            anchor_x: 0,
+          })
+          idx -= 1
+        end
+      end
+
+      draw_buffer[@path].concat(rendered_lines)
     end
 
     def update
@@ -70,11 +77,7 @@ module App
         @log_items.pop
       end
 
-      @log_start = @log_items.length - 5
-
-      if @log_start < 0
-        @log_start = 0
-      end
+      @log_start = 0
 
       @log_length = @log_items.length
 

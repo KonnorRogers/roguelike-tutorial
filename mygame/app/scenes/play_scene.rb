@@ -96,10 +96,22 @@ module App
       end
 
       def input
+        @did_take_turn = false
         @camera_updated = false
 
         bench(:input) do
           keyboard = @inputs.keyboard
+
+          if @inputs.keyboard.key_down.escape
+
+            if @item_menu.open
+              @item_menu.open = false
+              @item_menu.item = nil
+              @item_menu.item_index = nil
+            elsif @show_inventory
+              @show_inventory = false
+            end
+          end
 
           if @inputs.mouse.click
             if @show_inventory
@@ -118,14 +130,16 @@ module App
                 end
 
                 if clicked_button == @item_menu.rendered_buttons[:use]
-                  @player.use(item)
+                  did_use = @player.use(item)
+                  @did_take_turn = did_use
                   @item_menu.open = false
                   @item_menu.item = nil
                   @item_menu.item_index = nil
                 end
 
                 if clicked_button == @item_menu.rendered_buttons[:throw]
-                  @player.throw(item)
+                  did_throw = @player.throw(item)
+                  @did_take_turn = did_throw
                   @item_menu.open = false
                   @item_menu.item = nil
                   @item_menu.item_index = nil
@@ -145,6 +159,7 @@ module App
                   @item_menu.item_index = nil
                 end
               end
+
             end
 
             if @inputs.mouse.intersect_rect?(@inventory.backpack_icon_bounding_box)
@@ -157,30 +172,32 @@ module App
           end
 
           if @player.dead?
-            @did_move = false
+            @did_take_turn = false
             return
           end
 
           key_down = keyboard.key_down
 
-          @did_move = if key_down.left_arrow || key_down.a
-                        @player.move_left(@dungeon)
-                      elsif key_down.right_arrow || key_down.d
-                        @player.move_right(@dungeon)
-                      elsif key_down.up_arrow || key_down.w
-                        @player.move_up(@dungeon)
-                      elsif key_down.down_arrow || key_down.s
-                        @player.move_down(@dungeon)
-                      elsif keyboard.key_down.space
-                        # Wait...
-                        true
-                      else
-                        false
-                      end
+          if @did_take_turn != true
+            @did_take_turn = if key_down.left_arrow || key_down.a
+                               @player.move_left(@dungeon)
+                             elsif key_down.right_arrow || key_down.d
+                               @player.move_right(@dungeon)
+                             elsif key_down.up_arrow || key_down.w
+                               @player.move_up(@dungeon)
+                             elsif key_down.down_arrow || key_down.s
+                               @player.move_down(@dungeon)
+                             elsif keyboard.key_down.space
+                               # Wait...
+                               true
+                             else
+                               false
+                             end
+          end
 
           # used for rendering FOV
-          @update_fov = @update_fov.nil? || @did_move # for first render, check if there's any visible tiles.
-          @camera_updated = @did_move && @show_all_tiles
+          @update_fov = @update_fov.nil? || @did_take_turn # for first render, check if there's any visible tiles.
+          @camera_updated = @did_take_turn && @show_all_tiles
 
           if keyboard.key_down.period
             @show_all_tiles = !@show_all_tiles
@@ -238,7 +255,7 @@ module App
         bench(:calc) do
           calc_camera
 
-          if @did_move
+          if @did_take_turn
             @dungeon.entities.each do |entity|
               next if entity == @player
               next if entity.item?
@@ -474,8 +491,6 @@ module App
           game_over_label,
           try_again_label
         ])
-
-
 
         if @inputs.mouse.click
           reset

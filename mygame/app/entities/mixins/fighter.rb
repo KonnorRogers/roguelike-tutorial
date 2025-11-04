@@ -41,6 +41,8 @@ module App
                       :max_inventory_size
 
         def pickup(item)
+          return false if dead?
+
           # Find the index of the first nil element
           first_nil_index = @inventory.find_index(nil)
 
@@ -52,7 +54,8 @@ module App
         end
 
         def drop(item)
-          return if !item
+          return false if !item
+          return false if dead?
 
           item.drop(self)
           index = @inventory.find_index { |i| i == item }
@@ -60,7 +63,8 @@ module App
         end
 
         def use(item)
-          return if !item
+          return false if !item
+          return false if dead?
 
           used = item.use(self)
 
@@ -68,10 +72,13 @@ module App
             index = @inventory.find_index { |i| i == item }
             @inventory[index] = nil
           end
+
+          used
         end
 
         def heal(amount)
-          return 0 if @health == @max_health
+          return false if dead?
+          return false if @health == @max_health
 
           new_hp_value = @health + amount
 

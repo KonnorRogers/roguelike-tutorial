@@ -15,6 +15,11 @@ module App
         @item = false
       end
 
+      # Return the distance between the current entity and the given (x, y) coordinate.
+      def distance_from(x:, y:)
+        Math.sqrt((x - @x) ** 2 + (y - @y) ** 2)
+      end
+
       def serialize
         super.merge!({
           blendmode_enum: @blendmode_enum || 1

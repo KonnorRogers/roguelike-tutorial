@@ -4,9 +4,9 @@
 require "vendor/sprite_kit/sprite_kit.rb"
 require "app/game.rb"
 
-def boot(args)
-  args.state = {}
-end
+# def boot(args)
+#   args.state = {}
+# end
 
 
 def tick(args)

@@ -11,8 +11,10 @@ module App
 
         @canvas.max_width = 1000
         @canvas.spritesheets.select! do |spritesheet|
+          GTK.reset_sprite(spritesheet.path)
           next true if spritesheet.path == "sprites/kenney_1-bit-pack/tilesheet/colored.png"
           next true if spritesheet.path == "sprites/kenney_1-bit-pack/tilesheet/colored-transparent.png"
+          next true if spritesheet.path == "sprites/1bit-extensions.png"
 
           false
         end

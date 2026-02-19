@@ -3,6 +3,7 @@ require "app/tiles/floor"
 require "app/tiles/wall"
 require "app/entities/enemy"
 require "app/entities/items/health_potion"
+require "app/entities/items/lightning_potion"
 require "app/dungeon"
 
 module App
@@ -144,7 +145,12 @@ module App
           #   # Troll
           #   entity = App::Entities::Enemy.new(engine: engine, type: :troll)
           # end
-          entity = App::Entities::Items::HealthPotion.new(engine: engine, amount: 4)
+
+          if Numeric.rand < 0.7
+            entity = App::Entities::Items::HealthPotion.new(engine: engine, amount: 4)
+          else
+            entity = App::Entities::Items::LightningPotion.new(engine: engine, damage: 20, maximum_range: 5)
+          end
 
           entity.x = x
           entity.y = y

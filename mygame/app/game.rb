@@ -1,5 +1,6 @@
 module App
   SPRITESHEET_PATH = "sprites/kenney_1-bit-pack/tilesheet/colored.png"
+  SPRITESHEET_EXTENSIONS_PATH = "sprites/1bit-extensions.png"
   TILE_SIZE = 16
 
   require "app/entities/player"

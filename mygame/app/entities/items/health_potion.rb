@@ -67,6 +67,8 @@ module App
         def use(consumer)
           amount_recovered = consumer.heal(self.amount)
 
+          return false if amount_recovered == false
+
           if amount_recovered > 0
             @engine.floating_text.add("#{amount_recovered}", entity: consumer, color: {r: 0, g: 255, b: 0, a: 255})
             # @engine.game_log.log("You recovered #{amount_recovered}", type: :recovered)

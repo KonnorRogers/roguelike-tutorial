@@ -178,8 +178,16 @@ module App
     end
 
     def collisions(rect)
-      collideable_tiles = (@flat_tiles + @entities.reject { |e| e == rect }).select(&:collideable?)
-      collideable_tiles.select { |tile| tile.x == rect.x && tile.y == rect.y }
+      collideable_tiles = []
+
+      (@flat_tiles + @entities).each do |entity|
+        next if entity == rect
+        next if !entity.collideable?
+
+        collideable_tiles << entity if entity.x == rect.x && entity.y == rect.y
+      end
+
+      collideable_tiles
     end
 
     def update_field_of_view

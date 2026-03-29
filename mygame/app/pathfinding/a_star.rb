@@ -1,5 +1,54 @@
 module App
   module Pathfinding
+    class PriorityQueue
+      attr_accessor :ary
+
+      def initialize &has_priority_block
+        @ary = []
+        @has_priority_block = has_priority_block
+      end
+
+      def heapify n, i
+        top_priority = i
+        l = 2 * i + 1
+        r = 2 * i + 2
+
+        top_priority = l if l < n && @has_priority_block.call(@ary[l], @ary[top_priority])
+        top_priority = r if r < n && @has_priority_block.call(@ary[r], @ary[top_priority])
+
+        return if top_priority == i
+
+        @ary[i], @ary[top_priority] = @ary[top_priority], @ary[i]
+        heapify n, top_priority
+      end
+
+      def insert n
+        @ary.push_back n
+        current = @ary.length - 1
+        while current > 0
+          parent = (current - 1) >> 1
+          if @has_priority_block.call(@ary[current], @ary[parent])
+            @ary[current], @ary[parent] = @ary[parent], @ary[current]
+            current = parent
+          else
+            break
+          end
+        end
+      end
+
+      def extract
+        l = @ary.length
+        @ary[0], @ary[l - 1] = @ary[l - 1], @ary[0]
+        result = @ary.pop_back
+        heapify @ary.length, 0 if 0 < @ary.length
+        result
+      end
+
+      def empty?
+        @ary.empty?
+      end
+    end
+
     class Graph
       attr_accessor :cells, :walls, :height, :width, :entities
 
@@ -15,15 +64,22 @@ module App
     class AStar
       attr_accessor :frontier, :came_from, :path, :cost_so_far
 
-      def initialize(start:, target:, graph:)
+      def initialize(start:, target:, graph:, max_distance: 30)
         @start = start
         @target = target
         @graph = graph
+        # It can get expensive on large maps to do path finding. If we're more than 30 tiles deep, just cut it off.
+        @max_distance = max_distance
         reset
       end
 
       def reset
-        @frontier    = []
+        @frontier = PriorityQueue.new do |a, b|
+          a_result = proximity_to_start(a) + ((@cost_so_far[a] + greedy_heuristic(a)) * 1_000)
+          b_result = proximity_to_start(b) + ((@cost_so_far[b] + greedy_heuristic(b)) * 1_000)
+          (a_result <=> b_result) == -1
+        end
+
         @came_from   = {}
         @path        = []
         @cost_so_far = {}
@@ -33,9 +89,8 @@ module App
         # Setup the search to start from the star
         @came_from[@start] = nil
         @cost_so_far[@start] = 0
-        @frontier << @start
+        @frontier.insert(@start)
 
-        max_distance = 30
         distance = 0
 
         entity_locations = {}
@@ -48,16 +103,15 @@ module App
         end
 
         # Until there are no more cells to explore from or the search has found the target
-        until @frontier.empty? or @came_from.key?(@target) or distance > max_distance
+        until @frontier.empty? or @came_from.key?(@target) or distance > @max_distance
           # Get the next cell to expand from
-          current_frontier = @frontier.shift
+          current_frontier = @frontier.extract
+          new_locations = adjacent_neighbors(current_frontier)
 
           # For each of that cells neighbors
-          Array.each(adjacent_neighbors(current_frontier)) do |neighbor|
+          Array.each(new_locations) do |neighbor|
             # That have not been visited and are not walls
             unless @came_from.key?(neighbor) or @graph.walls.key?(neighbor)
-              # Add them to the frontier and mark them as visited
-              @frontier << neighbor
               @came_from[neighbor] = current_frontier
               tile = @graph.cells[neighbor.x][neighbor.y]
 
@@ -68,15 +122,12 @@ module App
                 extra_cost = entity.movement_cost
               end
 
+              # Mark cost_so_far before inserting into the frontier, otherwise we get a nil issue.
               @cost_so_far[neighbor] = @cost_so_far[current_frontier] + tile.movement_cost + extra_cost
-            end
-          end
 
-          # Sort the frontier so that cells that are in a zigzag pattern are prioritized over those in an line
-          # Comment this line and let a path generate to see the difference
-          @frontier = @frontier.sort_by do |cell|
-            # cost_so_for + greedy_heuristic is weighted way heavier than proximity_to_start
-            proximity_to_start(cell) + ((@cost_so_far[cell] + greedy_heuristic(cell)) * 1_000)
+              # Add them to the frontier and mark them as visited
+              @frontier.insert(neighbor)
+            end
           end
 
           distance += 1

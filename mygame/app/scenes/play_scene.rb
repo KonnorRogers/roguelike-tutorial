@@ -76,6 +76,8 @@ module App
         @game_log = GameLog.new
         update_scaled_tiles
         @show_inventory = false
+        @control_states = [:playing, :looking]
+        @control_state = :playing
       end
 
       def update_scaled_tiles
@@ -178,7 +180,7 @@ module App
 
           key_down = keyboard.key_down
 
-          if @did_take_turn != true
+          if @control_state == :playing && @did_take_turn != true
             @did_take_turn = if key_down.left_arrow || key_down.a
                                @player.move_left(@dungeon)
                              elsif key_down.right_arrow || key_down.d
@@ -193,11 +195,46 @@ module App
                              else
                                false
                              end
+
+            @camera.target_x = @player.x * TILE_SIZE
+            @camera.target_y = @player.y * TILE_SIZE
+          end
+
+          if keyboard.key_down.v
+            puts "STATE: #{@control_state}"
+            index = @control_states.find_index { |s| s == @control_state }
+            next_index = index + 1
+
+            if next_index > @control_states.length - 1
+              next_index = 0
+            end
+
+            @control_state = @control_states[next_index]
+
+            @camera.target_x = @player.x * TILE_SIZE
+            @camera.target_y = @player.y * TILE_SIZE
+            @update_fov = true
+            @camera_updated = true
+          end
+
+          if @control_state == :looking
+            if key_down.left_arrow || key_down.a
+              @camera.target_x -= TILE_SIZE
+            elsif key_down.right_arrow || key_down.d
+              @camera.target_x += TILE_SIZE
+            elsif key_down.up_arrow || key_down.w
+              @camera.target_y += TILE_SIZE
+            elsif key_down.down_arrow || key_down.s
+              @camera.target_y -= TILE_SIZE
+            end
+
+            @update_fov = true
+            @camera_updated = true
           end
 
           # used for rendering FOV
-          @update_fov = @update_fov.nil? || @did_take_turn # for first render, check if there's any visible tiles.
-          @camera_updated = @did_take_turn && @show_all_tiles
+          @update_fov = @update_fov.nil? || @update_fov || @did_take_turn # for first render, check if there's any visible tiles.
+          @camera_updated ||= @did_take_turn
 
           if keyboard.key_down.period
             @show_all_tiles = !@show_all_tiles
@@ -209,9 +246,6 @@ module App
             items_on_player = @dungeon.entities.select { |item| item.item? && item.x == @player.x && item.y == @player.y }
             items_on_player.each { |item| @player.pickup(item) }
           end
-
-          @camera.target_x = @player.x * TILE_SIZE
-          @camera.target_y = @player.y * TILE_SIZE
 
           handle_camera_zoom
         end

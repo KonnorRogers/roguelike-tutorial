@@ -108,15 +108,16 @@ module App
           a_star = App::Pathfinding::AStar.new(start: start, target: target, graph: @engine.graph)
           a_star.calc
 
-          # if a path couldn't be calculated, make it move randomly.
           path = a_star.path
         end
 
+        # if a path couldn't be calculated, make it move randomly.
         if path.length <= 0
           path = RANDOM_MOVEMENTS.shuffle
         end
 
         move_attempts = 1
+
         for direction in path
           did_move = move(@dungeon, direction: direction)
           break if did_move

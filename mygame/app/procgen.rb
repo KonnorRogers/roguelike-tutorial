@@ -4,6 +4,7 @@ require "app/tiles/wall"
 require "app/entities/enemy"
 require "app/entities/items/health_potion"
 require "app/entities/items/lightning_potion"
+require "app/entities/items/confusion_scroll"
 require "app/dungeon"
 
 module App
@@ -146,8 +147,12 @@ module App
           #   entity = App::Entities::Enemy.new(engine: engine, type: :troll)
           # end
 
-          if Numeric.rand < 0.7
+          chance = Numeric.rand
+
+          if chance < 0.7
             entity = App::Entities::Items::HealthPotion.new(engine: engine, amount: 4)
+          elsif chance < 0.9
+            entity = App::Entities::Items::ConfusionScroll.new(engine: engine, max_turns: 4)
           else
             entity = App::Entities::Items::LightningPotion.new(engine: engine, damage: 20, maximum_range: 5)
           end

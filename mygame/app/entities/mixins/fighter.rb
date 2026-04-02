@@ -2,6 +2,9 @@ module App
   module Entities
     module Mixins
       module Fighter
+        STATUSES = %i[confused paralyzed poisoned stunned].freeze
+
+
         def self.included(base)
           base.prepend(PrependedMethods)
         end
@@ -26,6 +29,7 @@ module App
               end
             end
 
+            @statuses = STATUSES.each_with_object({}) { |s, h| h[s] = false }
             if unset_properties.length > 0
               raise StandardError.new("#{unset_properties.join(", ")} ivars not set for #{self}")
             end
@@ -39,6 +43,14 @@ module App
                       :speed,
                       :inventory,
                       :max_inventory_size
+
+        def clear_statuses!
+          @statuses.transform_values! { false }
+        end
+
+        def active_statuses
+          @statuses.filter_map { |k, v| k if v }
+        end
 
         def pickup(item)
           return false if dead?

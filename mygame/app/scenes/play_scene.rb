@@ -200,7 +200,7 @@ module App
             @camera.target_y = @player.y * TILE_SIZE
           end
 
-          if keyboard.key_down.v
+          if keyboard.key_down.z
             puts "STATE: #{@control_state}"
             index = @control_states.find_index { |s| s == @control_state }
             next_index = index + 1

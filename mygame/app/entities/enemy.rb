@@ -60,7 +60,14 @@ module App
         @inventory = Array.new(0)
         @max_inventory_size = 0
 
+        @statuses = {
+          confused: false,
+        }
         set_sprite
+      end
+
+      def confused?
+        @statuses[:confused]
       end
 
       def take_damage(_attacker, damage)

@@ -87,11 +87,15 @@ module SpriteKit
       y = rect.y * camera.scale - camera.y * camera.scale + (camera.h / 2)
       rect.y = y
 
-      w = rect.w * camera.scale
-      rect.w = w
+      if rect.w
+        w = rect.w * camera.scale
+        rect.w = w
+      end
 
-      h = rect.h * camera.scale
-      rect.h = h
+      if rect.h
+        h = rect.h * camera.scale
+        rect.h = h
+      end
 
       rect
     end

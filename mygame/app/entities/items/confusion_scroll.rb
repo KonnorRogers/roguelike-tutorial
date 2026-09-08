@@ -28,6 +28,8 @@ module App
           @engine = engine
           @max_turns = max_turns
           @name = NAME
+          @maximum_range = 6
+          @requires_target = true
           set_sprite
         end
 
@@ -51,28 +53,17 @@ module App
           set_sprite
         end
 
-        def use(consumer)
+        def use(consumer, target)
           target = nil
           closest_distance = @maximum_range + 1.0
 
-          @engine.dungeon.visible_entities.each do |entity|
-            next if entity == consumer
-            next unless entity.is_a?(Enemy)
-            next if entity.dead?
-
-            distance = consumer.distance_from(x: entity.x, y: entity.y)
-
-            if distance < closest_distance
-              target = entity
-              closest_distance = distance
-            end
-          end
+          @engine.dungeon.visible_entities.find { |e| e == target }
 
           if target
             @engine.game_log.log(
-              "A lighting bolt strikes the #{target.type} with a loud thunder, for #{@damage} damage!"
+              "#{target.type} is confused!"
             )
-            @engine.floating_text.add("#{@damage}", entity: target, color: {r: 255, g: 0, b: 0, a: 255})
+            @engine.floating_text.add("Confused!", entity: target, color: {r: 0, g: 0, b: 255, a: 255})
             target.take_damage(consumer, self.damage)
             return true
           end

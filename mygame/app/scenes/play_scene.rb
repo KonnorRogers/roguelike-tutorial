@@ -6,6 +6,9 @@ require "app/floating_text"
 require "app/game_log"
 require "app/ui/item_menu"
 
+# Make sure happens last
+require "app/items"
+
 module App
   module Scenes
     class PlayScene < SpriteKit::Scene
@@ -18,6 +21,13 @@ module App
         super(...)
         reset
         @benchmarks = {}
+        @tick_count = 0
+        @last_moved_at = 0
+      end
+
+      def tick(...)
+        super(...)
+        @tick_count += 1
       end
 
       def bench(sym)
@@ -36,6 +46,7 @@ module App
       end
 
       def reset
+        @render_pixel_grid = false
         @camera = SpriteKit::Camera.new
         @camera_path = :camera
 
@@ -76,8 +87,57 @@ module App
         @game_log = GameLog.new
         update_scaled_tiles
         @show_inventory = false
-        @control_states = [:playing, :looking]
+        @control_states = [:playing, :looking, :targeting]
         @control_state = :playing
+
+        add_item(:confusion_scroll)
+
+        @inventory_buttons = {
+          use: proc { |item|
+            @use_item = proc { |target|
+              did_use = @player.use(item, target)
+              @did_take_turn = did_use
+              @item_menu.open = false
+              @item_menu.item = nil
+              @item_menu.item_index = nil
+              @item_menu.view = :item
+            }
+
+            if item.requires_target?
+              @control_state = :targeting
+              @item_menu.view = :confirm
+            else
+              @use_item.call(nil)
+            end
+          },
+          drop: proc { |item|
+            @player.drop(item)
+            @item_menu.open = false
+            @item_menu.item = nil
+            @item_menu.item_index = nil
+          },
+          throw: proc { |item|
+            did_throw = @player.throw(item)
+            @did_take_turn = did_throw
+            @item_menu.open = false
+            @item_menu.item = nil
+            @item_menu.item_index = nil
+          },
+          confirm: proc {
+            if @use_item
+              @use_item.call 
+              @use_item = nil
+              @item_menu.open = false
+              @item_menu.item = nil
+              @item_menu.item_index = nil
+              @did_take_turn = true
+            end
+          },
+          cancel: proc {
+            @use_item = nil
+            @item_menu.view = :inventory
+          }
+        }
       end
 
       def update_scaled_tiles
@@ -98,15 +158,30 @@ module App
       end
 
       def input
+        @outputs.debug << "#{@control_state}"
+
         @did_take_turn = false
         @camera_updated = false
 
         bench(:input) do
           keyboard = @inputs.keyboard
 
-          if @inputs.keyboard.key_down.escape
+          if keyboard.key_down.g
+            @render_pixel_grid = !@render_pixel_grid
+          end
 
-            if @item_menu.open
+          if @inputs.keyboard.key_down.escape
+            if @control_state == :looking
+              @control_state = :playing
+            elsif @control_state == :targeting && @item_menu.open
+              if @item_menu.open
+                @control_state = :playing
+                @item_menu.view = :item
+              end
+            elsif @item_menu.open
+              @control_state = :playing if @control_state != :playing
+              @item_menu.view = :item
+              @use_item = nil
               @item_menu.open = false
               @item_menu.item = nil
               @item_menu.item_index = nil
@@ -120,31 +195,15 @@ module App
               clicked_button = nil
 
               if @item_menu.open
-                clicked_button = Geometry.find_all_intersect_rect(@inputs.mouse, @item_menu.rendered_buttons.values)[0]
+                clicked_button = Geometry.find_intersect_rect(@inputs.mouse, @item_menu.rendered_buttons.values)
 
-                item = @inventory.items[@item_menu.item_index]
-
-                if clicked_button == @item_menu.rendered_buttons[:drop]
-                  @player.drop(item)
-                  @item_menu.open = false
-                  @item_menu.item = nil
-                  @item_menu.item_index = nil
+                if clicked_button && clicked_button.id
+                  puts "CLICKED: #{clicked_button.id}"
+                  item = @inventory.items[@item_menu.item_index]
+                  @inventory_buttons[clicked_button.id].call(item)
                 end
 
-                if clicked_button == @item_menu.rendered_buttons[:use]
-                  did_use = @player.use(item)
-                  @did_take_turn = did_use
-                  @item_menu.open = false
-                  @item_menu.item = nil
-                  @item_menu.item_index = nil
-                end
-
-                if clicked_button == @item_menu.rendered_buttons[:throw]
-                  did_throw = @player.throw(item)
-                  @did_take_turn = did_throw
-                  @item_menu.open = false
-                  @item_menu.item = nil
-                  @item_menu.item_index = nil
+                if clicked_button == @item_menu.rendered_buttons
                 end
               end
 
@@ -179,17 +238,19 @@ module App
           end
 
           key_down = keyboard.key_down
+          key_repeat = keyboard.key_repeat
 
+          # Instead of using key_repeat, we normalize it at 10 ticks (16 * 10, 160ms)
           if @control_state == :playing && @did_take_turn != true
-            @did_take_turn = if key_down.left_arrow || key_down.a
+            @did_take_turn = if key_repeat.left_arrow || key_repeat.a
                                @player.move_left(@dungeon)
-                             elsif key_down.right_arrow || key_down.d
+                             elsif key_repeat.right_arrow || key_repeat.d
                                @player.move_right(@dungeon)
-                             elsif key_down.up_arrow || key_down.w
+                             elsif key_repeat.up_arrow || key_repeat.w
                                @player.move_up(@dungeon)
-                             elsif key_down.down_arrow || key_down.s
+                             elsif key_repeat.down_arrow || key_repeat.s
                                @player.move_down(@dungeon)
-                             elsif keyboard.key_down.space
+                             elsif key_repeat.space
                                # Wait...
                                true
                              else
@@ -198,10 +259,13 @@ module App
 
             @camera.target_x = @player.x * TILE_SIZE
             @camera.target_y = @player.y * TILE_SIZE
+
+            if @did_take_turn
+              @last_moved_at = @tick_count
+            end
           end
 
           if keyboard.key_down.z
-            puts "STATE: #{@control_state}"
             index = @control_states.find_index { |s| s == @control_state }
             next_index = index + 1
 
@@ -217,19 +281,22 @@ module App
             @camera_updated = true
           end
 
-          if @control_state == :looking
-            if key_down.left_arrow || key_down.a
-              @camera.target_x -= TILE_SIZE
-            elsif key_down.right_arrow || key_down.d
-              @camera.target_x += TILE_SIZE
-            elsif key_down.up_arrow || key_down.w
-              @camera.target_y += TILE_SIZE
-            elsif key_down.down_arrow || key_down.s
-              @camera.target_y -= TILE_SIZE
-            end
+          if @control_state == :looking || @control_state == :targeting
+            @camera_updated = if key_down.left_arrow || key_down.a
+                                @camera.target_x -= TILE_SIZE
+                                true
+                              elsif key_down.right_arrow || key_down.d
+                                @camera.target_x += TILE_SIZE
+                                true
+                              elsif key_down.up_arrow || key_down.w
+                                @camera.target_y += TILE_SIZE
+                                true
+                              elsif key_down.down_arrow || key_down.s
+                                @camera.target_y -= TILE_SIZE
+                                true
+                              end
 
-            @update_fov = true
-            @camera_updated = true
+            @update_fov = @camera_updated
           end
 
           # used for rendering FOV
@@ -443,6 +510,88 @@ module App
         if Kernel.tick_count == 0
           # @outputs.static_primitives << Layout.debug_primitives
         end
+
+        if @control_state == :targeting
+          index = Numeric.frame_index(
+                              start_at: 0,
+                              count: 2, # or frame_count: 6 (if both are provided frame_count will be used)
+                              hold_for: 45,
+                              repeat: true,
+                              repeat_index: 0,
+                              tick_count_override: @tick_count
+                          )
+          offset =  2 + (index * -2)
+          padding = 4 + (index * -4)
+          @targeting_box ||= {
+            background: {
+              r: 255, g: 0, b: 0, a: 64, path: :solid
+            },
+            sprite: {
+              source_x: 595,
+              source_y: 153,
+              source_h: 16,
+              source_w: 16,
+              path: "sprites/kenney_1-bit-pack/tilesheet/colored-transparent.png"
+            }
+          }
+
+          x = (@camera.x / TILE_SIZE).floor
+          y = (@camera.y / TILE_SIZE).floor
+
+          targeting_box = @targeting_box.map do |key, spr|
+            _offset = offset
+            _padding = padding
+            if key == :background
+              _padding = 0
+              _offset = 0
+            end
+
+            spr.x = (x * TILE_SIZE) - _offset
+            spr.y = (y * TILE_SIZE) - _offset
+            spr.w = TILE_SIZE + _padding
+            spr.h = TILE_SIZE + _padding
+            @camera.to_screen_space(spr)
+          end
+
+          target = false
+          intersecting_box = @targeting_box.background
+
+          @outputs.debug << "X: #{intersecting_box.x}, Y: #{intersecting_box.y}"
+          @dungeon.visible_entities.each do |entity|
+            next if entity.dead?
+            next if entity == @player
+
+            # entities are stored for as simple numbers, so we don't need to convert
+            if entity.x == (intersecting_box.x / TILE_SIZE).floor && 
+              entity.y == (intersecting_box.y / TILE_SIZE).floor
+              target = true
+              break
+            end
+          end
+
+
+          if target
+            intersecting_box.merge!({
+              r: 0,
+              g: 255,
+              b: 0
+            })
+          else
+            intersecting_box.merge!({
+              r: 255,
+              g: 0,
+              b: 0
+            })
+          end
+
+
+          @outputs.debug << "on target: #{target}"
+          @draw_buffer[@camera_path].concat(targeting_box)
+        else
+          @targeting_box = nil
+        end
+
+        @draw_buffer[@camera_path].concat(render_grid) if @render_pixel_grid
       end
 
       def draw
@@ -529,6 +678,40 @@ module App
         if @inputs.mouse.click
           reset
         end
+      end
+
+      def add_item(name)
+        item = ::App::ITEMS[name.to_sym]
+        return if !item
+        @player.pickup(item.call(self))
+      end
+
+      def render_grid(tile_w: TILE_SIZE, tile_h: TILE_SIZE)
+        world = @camera.to_world_space(@camera.viewport.dup)
+        min_x = (world.x / tile_w).floor * tile_w
+        min_y = (world.y / tile_h).floor * tile_h
+        max_x = world.x + world.w
+        max_y = world.y + world.h
+
+        solids = []
+
+        x = min_x
+        while x <= max_x
+          s = { x: x, y: min_y, w: 1, h: max_y - min_y }
+          s = @camera.to_screen_space(s)
+          solids << { x: s.x, y: s.y, w: 1, h: s.h, r: 255, g: 255, b: 255, a: 255, path: :solid }
+          x += tile_w
+        end
+
+        y = min_y
+        while y <= max_y
+          s = { x: min_x, y: y, w: max_x - min_x, h: 1 }
+          s = @camera.to_screen_space(s)
+          solids << { x: s.x, y: s.y, w: s.w, h: 1, r: 255, g: 255, b: 255, a: 255, path: :solid }
+          y += tile_h
+        end
+
+        solids
       end
     end
   end

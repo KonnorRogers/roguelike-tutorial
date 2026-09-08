@@ -8,7 +8,6 @@ def boot(args)
   args.state = {}
 end
 
-
 def tick(args)
   $game ||= App::Game.new
   $game.tick(args)

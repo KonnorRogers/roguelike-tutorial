@@ -7,16 +7,16 @@ module App
         SPRITE = {
           filled: {
             source_x: 0,
-            lightning_y: 32,
-            source_h: 32,
-            source_w: 32,
+            source_y: 32,
+            source_h: 16,
+            source_w: 16,
             path: App::SPRITESHEET_EXTENSIONS_PATH
           },
           transparent: {
             source_x: 0,
             source_y: 0,
-            source_h: 32,
-            source_w: 32,
+            source_h: 16,
+            source_w: 16,
             path: App::SPRITESHEET_EXTENSIONS_PATH
           }
         }.freeze

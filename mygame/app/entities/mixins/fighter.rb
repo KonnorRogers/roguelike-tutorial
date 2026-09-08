@@ -74,11 +74,11 @@ module App
           @inventory[index] = nil
         end
 
-        def use(item)
+        def use(item, target = nil)
           return false if !item
           return false if dead?
 
-          used = item.use(self)
+          used = item.use(self, nil)
 
           if used
             index = @inventory.find_index { |i| i == item }

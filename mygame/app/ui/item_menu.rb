@@ -2,7 +2,7 @@
 module App
   module Ui
     class ItemMenu < SpriteKit::Sprite
-      attr_accessor :open, :item, :rendered_buttons, :item_index
+      attr_accessor :open, :item, :rendered_buttons, :item_index, :view
 
       SAFE_X_INSET = 50
       SAFE_Y_INSET = 50
@@ -11,10 +11,14 @@ module App
         @open = open
         @item = item
         @item_index = nil
+        # :inventory or :confirm
+        @view = :inventory
         @rendered_buttons = {
           drop: nil,
           use: nil,
-          throw: nil
+          throw: nil,
+          confirm: nil,
+          cancel: nil,
         }
         @w = w
         @h = h
@@ -29,7 +33,7 @@ module App
         @h = 300
         @y = (@item.y + @item.h).clamp(SAFE_Y_INSET, Grid.h - @h - SAFE_Y_INSET)
         @x = (@item.x + (@item.w / 2)).clamp(SAFE_X_INSET, Grid.w - @w - SAFE_X_INSET)
-        @primitive_marker = :solid
+        @path = :solid
         [self].concat(buttons)
       end
 
@@ -51,35 +55,45 @@ module App
 
       def buttons
         gap = 8
-        button_width = @w / 3 - gap
+        buttons = {}
+        if @view == :confirm
+          buttons = {
+            confirm: "Confirm",
+            cancel: "Cancel"
+          }
+        else
+          buttons = {
+            use: "Use",
+            throw: "Throw",
+            drop: "Drop"
+          }
+        end
+
+        keys = buttons.keys
+        button_width = (@w / keys.length) - gap
         button_height = 46
-        use_button = {
-          x: @x + gap,
-          y: @y + gap,
-          w: button_width,
-          h: button_height,
-          r: 255,
-          g: 0,
-          b: 0,
-          a: 255,
-          primitive_marker: :solid
-        }
-        use_button_label = build_label("Use", use_button)
 
-        throw_button = use_button.merge({
-          x: use_button.x + button_width + (gap / 2),
-        })
-        throw_button_label = build_label("Throw", throw_button)
+        @rendered_buttons = {}
+        rendered_items = []
+        keys.each_with_index do |key, index|
+          text = buttons[key]
+          button = {
+            id: key,
+            x: @x + gap + ((gap * index) / 2) + (button_width * index),
+            y: @y,
+            w: button_width,
+            h: button_height,
+            r: 255,
+            g: 0,
+            b: 0,
+            a: 255,
+            path: :solid
+          }
+          rendered_items.push(button, build_label(text, button))
+          @rendered_buttons[key] = button
+        end
 
-        drop_button = use_button.merge({
-          x: throw_button.x + button_width + (gap / 2),
-        })
-        drop_button_label = build_label("Drop", drop_button)
-
-        @rendered_buttons.use = use_button
-        @rendered_buttons.throw = throw_button
-        @rendered_buttons.drop = drop_button
-        [use_button, use_button_label, throw_button, throw_button_label, drop_button, drop_button_label]
+        rendered_items
       end
     end
   end

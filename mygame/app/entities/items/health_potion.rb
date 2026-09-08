@@ -64,7 +64,7 @@ module App
           set_sprite
         end
 
-        def use(consumer)
+        def use(consumer, target = nil)
           amount_recovered = consumer.heal(self.amount)
 
           return false if amount_recovered == false

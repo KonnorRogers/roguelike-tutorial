@@ -10,6 +10,11 @@ module App
           super(...)
           @item = true
           @collideable = false
+          @requires_target = false
+        end
+
+        def requires_target?
+          @requires_target
         end
 
         def pickup(consumer)
@@ -29,7 +34,7 @@ module App
         def throw(consumer)
         end
 
-        def use(consumer)
+        def use(consumer, target = nil)
         end
 
         def dead?

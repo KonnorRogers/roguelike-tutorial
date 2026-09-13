@@ -54,17 +54,15 @@ module App
         end
 
         def use(consumer, target)
-          target = nil
-          closest_distance = @maximum_range + 1.0
-
-          @engine.dungeon.visible_entities.find { |e| e == target }
+          # @engine.dungeon.visible_entities.find { |e| e == target }
 
           if target
             @engine.game_log.log(
               "#{target.type} is confused!"
             )
-            @engine.floating_text.add("Confused!", entity: target, color: {r: 0, g: 0, b: 255, a: 255})
-            target.take_damage(consumer, self.damage)
+
+            entity = @engine.scale_for_screen(target.serialize)
+            @engine.floating_text.add("Confused!!", entity: entity, color: {r: 0, g: 0, b: 255, a: 255})
             return true
           end
 

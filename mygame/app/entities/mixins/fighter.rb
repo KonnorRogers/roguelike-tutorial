@@ -78,7 +78,7 @@ module App
           return false if !item
           return false if dead?
 
-          used = item.use(self, nil)
+          used = item.use(self, target)
 
           if used
             index = @inventory.find_index { |i| i == item }

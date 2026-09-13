@@ -7,10 +7,10 @@ module App
         SPRITE = {
           filled: {
             source_x: 0,
-            source_y: 32,
+            source_y: 16,
             source_h: 16,
             source_w: 16,
-            path: App::SPRITESHEET_EXTENSIONS_PATH
+            path: "sprites/1bit-extensions.png"
           },
           transparent: {
             source_x: 0,
@@ -31,6 +31,7 @@ module App
           @maximum_range = maximum_range
           @damage = damage
           @name = NAME
+          @transparent = transparent
           set_sprite
         end
 
@@ -64,7 +65,8 @@ module App
           set_sprite
         end
 
-        def use(consumer)
+        def use(consumer, target = nil)
+          # Just in case a target is passed in.
           target = nil
           closest_distance = @maximum_range + 1.0
 

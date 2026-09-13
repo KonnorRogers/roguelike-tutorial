@@ -70,8 +70,8 @@ module App
           return false if amount_recovered == false
 
           if amount_recovered > 0
-            @engine.floating_text.add("#{amount_recovered}", entity: consumer, color: {r: 0, g: 255, b: 0, a: 255})
-            # @engine.game_log.log("You recovered #{amount_recovered}", type: :recovered)
+            entity = @engine.scale_for_screen(consumer.serialize)
+            @engine.floating_text.add("#{amount_recovered}", entity: entity, color: {r: 0, g: 255, b: 0, a: 255})
             @engine.game_log.log(
                 "You consume the #{@name}, and recover #{amount_recovered} HP!",
                 type: :hp_recover,

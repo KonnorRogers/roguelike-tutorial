@@ -74,7 +74,9 @@ module App
         @graph = @dungeon.graph
         @player = @dungeon.player
         @camera.target_x = @player.x * TILE_SIZE
+        @camera.x = @camera.target_x
         @camera.target_y = @player.y * TILE_SIZE
+        @camera.y = @camera.target_y
 
         @health_bar = App::Ui::HealthBar.new(entity: @player, x: 50, y: 50)
         @inventory = App::Ui::Inventory.new(items: @player.inventory)
@@ -87,27 +89,38 @@ module App
         @game_log = GameLog.new
         update_scaled_tiles
         @show_inventory = false
-        @control_states = [:playing, :looking, :targeting]
-        @control_state = :playing
+        @control_states = {
+          playing: :playing,
+          looking: :looking,
+          targeting: :targeting
+        }
+
+        @control_state = @control_states.playing
 
         add_item(:confusion_scroll)
 
         @inventory_buttons = {
           use: proc { |item|
-            @use_item = proc { |target|
+            @use_item = proc do |item, target|
               did_use = @player.use(item, target)
-              @did_take_turn = did_use
-              @item_menu.open = false
-              @item_menu.item = nil
-              @item_menu.item_index = nil
-              @item_menu.view = :item
-            }
+              if did_use
+                @did_take_turn = did_use
+                @item_menu.open = false
+                @item_menu.item = nil
+                @item_menu.item_index = nil
+                @item_menu.view = :item
+                @control_state = :playing
+                @item_target = nil
+                @use_item = nil
+              end
+            end
 
             if item.requires_target?
               @control_state = :targeting
               @item_menu.view = :confirm
             else
-              @use_item.call(nil)
+              @use_item.call(item, nil)
+              @use_item = nil # sometimes use_item may not fire if no target
             end
           },
           drop: proc { |item|
@@ -123,15 +136,8 @@ module App
             @item_menu.item = nil
             @item_menu.item_index = nil
           },
-          confirm: proc {
-            if @use_item
-              @use_item.call 
-              @use_item = nil
-              @item_menu.open = false
-              @item_menu.item = nil
-              @item_menu.item_index = nil
-              @did_take_turn = true
-            end
+          confirm: proc { |item|
+            @use_item.call(item, @item_target)
           },
           cancel: proc {
             @use_item = nil
@@ -159,6 +165,7 @@ module App
 
       def input
         @outputs.debug << "#{@control_state}"
+        @outputs.debug << "#{@use_item}"
 
         @did_take_turn = false
         @camera_updated = false
@@ -266,14 +273,11 @@ module App
           end
 
           if keyboard.key_down.z
-            index = @control_states.find_index { |s| s == @control_state }
-            next_index = index + 1
-
-            if next_index > @control_states.length - 1
-              next_index = 0
+            if @control_state == @control_states.looking
+              @control_state = :playing
+            elsif @control_state == @control_states.playing
+              @control_state = :looking
             end
-
-            @control_state = @control_states[next_index]
 
             @camera.target_x = @player.x * TILE_SIZE
             @camera.target_y = @player.y * TILE_SIZE
@@ -282,16 +286,16 @@ module App
           end
 
           if @control_state == :looking || @control_state == :targeting
-            @camera_updated = if key_down.left_arrow || key_down.a
+            @camera_updated = if key_repeat.left_arrow || key_repeat.a
                                 @camera.target_x -= TILE_SIZE
                                 true
-                              elsif key_down.right_arrow || key_down.d
+                              elsif key_repeat.right_arrow || key_repeat.d
                                 @camera.target_x += TILE_SIZE
                                 true
-                              elsif key_down.up_arrow || key_down.w
+                              elsif key_repeat.up_arrow || key_repeat.w
                                 @camera.target_y += TILE_SIZE
                                 true
-                              elsif key_down.down_arrow || key_down.s
+                              elsif key_repeat.down_arrow || key_repeat.s
                                 @camera.target_y -= TILE_SIZE
                                 true
                               end
@@ -347,9 +351,15 @@ module App
       end
 
       def calc_camera
+        lerp = 0.15
         @camera.scale += (@camera.target_scale - @camera.scale)
-        @camera.x += (@camera.target_x - @camera.x)
-        @camera.y += (@camera.target_y - @camera.y)
+        dx = (@camera.target_x - @camera.x) * lerp
+        dx = 0 if dx.abs <= 0.05
+        dy = (@camera.target_y - @camera.y) * lerp
+        dy = 0 if dy.abs <= 0.05
+
+        @camera.x += dx if dx.abs > 0
+        @camera.y += dy if dy.abs > 0
       end
 
       def calc
@@ -406,12 +416,30 @@ module App
       end
 
       def scale_for_screen(sprite)
-        @camera.to_screen_space(sprite.merge({
+        h = @camera.to_screen_space(sprite.merge({
           x: sprite.x * TILE_SIZE,
           y: sprite.y * TILE_SIZE,
           w: sprite.w * TILE_SIZE,
           h: sprite.h * TILE_SIZE
         }))
+
+        # if sprite.is_a?(Array)
+        #   Array.map(sprite) { |s| _scale_for_screen(s) }
+        # else
+        #   _scale_for_screen(sprite)
+        # end
+        h
+      end
+
+      def _scale_for_screen(sprite)
+        cloned_sprite = sprite.clone
+        @camera.to_screen_space!(cloned_sprite.tap do |s|
+          s.x = s.x * TILE_SIZE if s.x
+          s.y = s.y * TILE_SIZE if s.y
+          s.w = s.w * TILE_SIZE if s.w
+          s.h = s.h * TILE_SIZE if s.h
+        end)
+        cloned_sprite
       end
 
       def render
@@ -535,8 +563,8 @@ module App
             }
           }
 
-          x = (@camera.x / TILE_SIZE).floor
-          y = (@camera.y / TILE_SIZE).floor
+          x = (@camera.target_x / TILE_SIZE).floor
+          y = (@camera.target_y / TILE_SIZE).floor
 
           targeting_box = @targeting_box.map do |key, spr|
             _offset = offset
@@ -556,19 +584,20 @@ module App
           target = false
           intersecting_box = @targeting_box.background
 
-          @outputs.debug << "X: #{intersecting_box.x}, Y: #{intersecting_box.y}"
           @dungeon.visible_entities.each do |entity|
             next if entity.dead?
+            next if entity.item?
             next if entity == @player
 
             # entities are stored for as simple numbers, so we don't need to convert
-            if entity.x == (intersecting_box.x / TILE_SIZE).floor && 
+            if entity.x == (intersecting_box.x / TILE_SIZE).floor &&
               entity.y == (intersecting_box.y / TILE_SIZE).floor
-              target = true
+              target = entity
               break
             end
           end
 
+          @item_target = target
 
           if target
             intersecting_box.merge!({
@@ -584,8 +613,7 @@ module App
             })
           end
 
-
-          @outputs.debug << "on target: #{target}"
+          # @outputs.debug << "on target: #{target}"
           @draw_buffer[@camera_path].concat(targeting_box)
         else
           @targeting_box = nil
@@ -610,10 +638,17 @@ module App
       end
 
       def render_all_tiles
-        entities = Array.map(@dungeon.entities) { |entity| scale_for_screen(entity.serialize) }
+        entities = @dungeon.entities
+          # .sort_by(&:draw_order)
+          # .map do |entity|
+          #   h = entity.serialize
+          #   puts h
+          #   h
+          # end
+          # .flatten
 
         @draw_buffer[@camera_path].concat(Geometry.find_all_intersect_rect(@camera.viewport, @scaled_tiles))
-        @draw_buffer[@camera_path].concat(Geometry.find_all_intersect_rect(@camera.viewport, entities).sort_by(&:draw_order))
+        @draw_buffer[@camera_path].concat(Geometry.find_all_intersect_rect(@camera.viewport, entities))
       end
 
       def render_visible_tiles
@@ -622,6 +657,7 @@ module App
         visible_entities = @dungeon.visible_entities
           .sort_by(&:draw_order)
           .map { |entity| scale_for_screen(entity.serialize) }
+          .flatten
 
         @draw_buffer[@camera_path].concat(visible_entities)
       end

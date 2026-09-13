@@ -149,7 +149,7 @@ module App
 
           chance = Numeric.rand
 
-          if chance < 0.7
+          if chance < 0.3
             entity = App::Entities::Items::HealthPotion.new(engine: engine, amount: 4)
           elsif chance < 0.9
             entity = App::Entities::Items::ConfusionScroll.new(engine: engine, max_turns: 4)
@@ -157,10 +157,6 @@ module App
             entity = App::Entities::Items::LightningPotion.new(engine: engine, damage: 20, maximum_range: 5)
           end
 
-          entity.x = x
-          entity.y = y
-          entity.w = 1
-          entity.h = 1
           engine.dungeon.entities << entity
         end
       end

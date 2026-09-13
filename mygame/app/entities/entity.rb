@@ -1,6 +1,23 @@
 module App
   module Entities
     class Entity < SpriteKit::Sprite
+      STATUS_SPRITES = {
+        confused: {
+          source_x: 646,
+          source_y: 136,
+          source_h: 16,
+          source_w: 16,
+          path: "sprites/kenney_1-bit-pack/tilesheet/colored-transparent.png"
+        },
+        paralyzed: {
+        },
+        poisoned: {
+        },
+        stunned: {}
+      }
+
+      STATUSES = %i[confused paralyzed poisoned stunned].freeze
+
       attr_accessor :engine, :dungeon, :movement_cost, :viewed
       attr_accessor :center_x, :center_y, :center
 
@@ -20,13 +37,6 @@ module App
         Math.sqrt((x - @x) ** 2 + (y - @y) ** 2)
       end
 
-      def serialize
-        super.merge!({
-          blendmode_enum: @blendmode_enum || 1
-        })
-      end
-
-
       def collideable?
         @collideable
       end
@@ -38,7 +48,37 @@ module App
       def serialize
         hash = super
         hash.draw_order = draw_order
+        # hash.delete(:engine)
         hash
+      end
+
+      def prefab
+        [
+          self
+      ].concat(status_icons).compact
+      end
+
+      def icon(sprite)
+        return nil if !@x || !@y || !@h || !@h
+        {
+          x: @x,
+          y: @y + @h + 4,
+          w: 32,
+          h: 32,
+          draw_order: 3,
+          **sprite
+        }
+      end
+
+      def status_icons
+        icons = []
+
+        # STATUSES.each do |status|
+          # icons << icon(STATUS_SPRITES[status])
+        # end
+        icons << icon(STATUS_SPRITES[:confused])
+
+        icons
       end
 
       def draw_order

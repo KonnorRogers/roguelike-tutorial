@@ -28,6 +28,13 @@ module App
         @a = 255
       end
 
+      def reset
+        @open = false
+        @item = nil
+        @item_index = nil
+        @view = :inventory
+      end
+
       def render
         @w = 300
         @h = 300

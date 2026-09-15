@@ -28,10 +28,12 @@ module App
         def drop(consumer)
           @x = consumer.x
           @y = consumer.y
+          # @w = 1
+          # @h = 1
           @engine.dungeon.entities << self
         end
 
-        def throw(consumer)
+        def throw(consumer, target)
         end
 
         def use(consumer, target = nil)

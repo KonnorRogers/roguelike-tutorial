@@ -61,6 +61,7 @@ module App
               "#{target.type} is confused!"
             )
 
+            target.confused = true
             entity = @engine.scale_for_screen(target.serialize)
             @engine.floating_text.add("Confused!!", entity: entity, color: {r: 0, g: 0, b: 255, a: 255})
             return true

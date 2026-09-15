@@ -4,6 +4,20 @@ module App
       module Fighter
         STATUSES = %i[confused paralyzed poisoned stunned].freeze
 
+        STATUS_SPRITES = {
+          confused: {
+            source_x: 646,
+            source_y: 136,
+            source_h: 16,
+            source_w: 16,
+            path: "sprites/kenney_1-bit-pack/tilesheet/colored-transparent.png"
+          },
+          # paralyzed: {
+          # },
+          # poisoned: {
+          # },
+          # stunned: {}
+        }
 
         def self.included(base)
           base.prepend(PrependedMethods)
@@ -34,6 +48,14 @@ module App
               raise StandardError.new("#{unset_properties.join(", ")} ivars not set for #{self}")
             end
           end
+          STATUSES.each do |status|
+            define_method "#{status}?" do
+              active_statuses.include?(status)
+            end
+            define_method("#{status}=") do |value|
+              instance_variable_get("@statuses")[status] = !!value
+            end
+          end
         end
 
         attr_accessor :health,
@@ -42,7 +64,8 @@ module App
                       :power,
                       :speed,
                       :inventory,
-                      :max_inventory_size
+                      :max_inventory_size,
+                      :statuses
 
         def clear_statuses!
           @statuses.transform_values! { false }
@@ -50,6 +73,45 @@ module App
 
         def active_statuses
           @statuses.filter_map { |k, v| k if v }
+        end
+
+        def prefab
+          [
+            self,
+          ]
+            .concat(status_icons)
+        end
+
+        def icon(sprite)
+          return nil if !sprite
+
+          w = 0.5
+          h = 0.5
+
+          offset_x = (@w - w) / 2
+          {
+            x: @x + offset_x,
+            y: @y + @h,
+            w: w,
+            h: h,
+            draw_order: 3,
+            a: 128,
+            # a: 255,
+            blendmode_enum: 2,
+            **sprite
+          }
+        end
+
+        def status_icons
+          icons = []
+
+          return icons if dead?
+
+          active_statuses.each do |status|
+            icons << icon(STATUS_SPRITES[status])
+          end
+
+          icons
         end
 
         def pickup(item)
@@ -70,8 +132,22 @@ module App
           return false if dead?
 
           item.drop(self)
-          index = @inventory.find_index { |i| i == item }
+          index = @inventory.find_index { |i| i.id == item.id }
           @inventory[index] = nil
+          true
+        end
+
+        def throw(item, target = nil)
+          return false if !item
+
+          thrown = item.throw(self, target)
+
+          if thrown
+            index = @inventory.find_index { |i| i.id == item.id }
+            @inventory[index] = nil
+          end
+
+          thrown
         end
 
         def use(item, target = nil)
@@ -81,7 +157,7 @@ module App
           used = item.use(self, target)
 
           if used
-            index = @inventory.find_index { |i| i == item }
+            index = @inventory.find_index { |i| i.id == item.id }
             @inventory[index] = nil
           end
 
@@ -131,6 +207,7 @@ module App
 
         def move(dungeon, direction:)
           current_tile = @dungeon.tiles[@x][@y]
+
           if dead?
             return false
           end

@@ -157,6 +157,8 @@ module App
             entity = App::Entities::Items::LightningPotion.new(engine: engine, damage: 20, maximum_range: 5)
           end
 
+          entity.x = x
+          entity.y = y
           engine.dungeon.entities << entity
         end
       end

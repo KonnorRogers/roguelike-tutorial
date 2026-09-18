@@ -28,8 +28,8 @@ module App
           @engine = engine
           @max_turns = max_turns
           @name = NAME
-          @maximum_range = 6
-          @requires_target = true
+          @maximum_range = 8
+          @targeting_type = :enemy
           set_sprite
         end
 
@@ -53,8 +53,19 @@ module App
           set_sprite
         end
 
+        def can_use?(consumer, target)
+          return false if !target
+
+          distance = consumer.distance_from(x: target.x, y: target.y)
+
+          return false if distance > @maximum_range
+          return false if !target.is_a?(Enemy)
+
+          true
+        end
+
         def use(consumer, target)
-          # @engine.dungeon.visible_entities.find { |e| e == target }
+          return false if !can_use?(consumer, target)
 
           if target
             @engine.game_log.log(

@@ -310,7 +310,6 @@ module App
                                 @use_item.call(@item_target)
                               end
 
-
             # This prevents moving the camera when clicking, feels weird when it happens.
             if inputs.click && @control_state == :targeting && !@clicked_button
               @target_x = (@tiled_mouse.x * TILE_SIZE).floor
@@ -598,22 +597,17 @@ module App
           target = false
           intersecting_box = @targeting_box.background
 
-          @dungeon.visible_entities.each do |entity|
-            next if entity.dead?
-            next if entity.item?
-            next if entity == @player
+          item = @item_menu.item
 
-            # entities are stored for as simple numbers, so we don't need to convert
-            if entity.x == (intersecting_box.x / TILE_SIZE).floor &&
-              entity.y == (intersecting_box.y / TILE_SIZE).floor
-              target = entity
-              break
-            end
+          if item.targeting_type == :coordinate
+            target = handle_coordinate_targeting(item, intersecting_box)
+          elsif item.targeting_type == :enemy
+            target = handle_enemy_targeting(item, intersecting_box)
           end
 
           @item_target = target
 
-          if target
+          if target && item.can_use?(@player, target)
             intersecting_box.merge!({
               r: 0,
               g: 255,
@@ -782,6 +776,29 @@ module App
         end
 
         solids
+      end
+
+
+      # For when targeting requires an actual entity
+      def handle_enemy_targeting(item, rect)
+        target = nil
+        @dungeon.visible_entities.each do |entity|
+          next if entity.dead?
+          next if entity.item?
+          next if entity == @player
+
+          # entities are stored for as simple numbers, so we don't need to convert
+          # We could use intersect_rect, but no need since everything is 1x1
+          if entity.x == (rect.x / TILE_SIZE).floor &&
+            entity.y == (rect.y / TILE_SIZE).floor
+            target = entity
+            break
+          end
+        end
+        target
+      end
+
+      def handle_coordinate_targeting(item, rect)
       end
     end
   end

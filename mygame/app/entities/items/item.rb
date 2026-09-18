@@ -4,17 +4,17 @@ module App
   module Entities
     module Items
       class Item < Entity
-        attr_accessor :name
+        attr_accessor :name, :targeting_type
 
         def initialize(...)
           super(...)
           @item = true
           @collideable = false
-          @requires_target = false
+          @targeting_type = nil # :coordinate | :enemy | nil
         end
 
         def requires_target?
-          @requires_target
+          return !!@targeting_type
         end
 
         def pickup(consumer)
@@ -37,6 +37,9 @@ module App
         end
 
         def use(consumer, target = nil)
+        end
+
+        def can_use?(consumer, target = nil)
         end
 
         def dead?

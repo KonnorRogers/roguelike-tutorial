@@ -12,39 +12,28 @@ module SpriteKit
     end
 
     def add(*renderables, target: nil)
-      Array.each(renderables) do |renderable|
+      Array(renderables).each do |renderable|
         if renderable.is_a?(Array)
           if !target
             @primitives.concat(renderable)
           else
-            ary = fetch(target)
-            ary.concat(renderable)
+            @render_targets[target].concat(renderable)
           end
         else
           if !target
             @primitives << renderable
           else
-            ary = fetch(target)
-            ary << renderable
+            @render_targets[target] << renderable
           end
         end
       end
     end
 
-    def fetch(key)
+    def [](key)
       raise RenderTargetArgumentError.new(key.inspect + " is not a string or symbol") if !(key.is_a?(String) || key.is_a?(Symbol))
 
-      if !@render_targets.key?(key)
-        ary = []
-        @render_targets[key] = ary
-        return ary
-      end
-
+      @render_targets[key] = [] if !@render_targets.key?(key)
       @render_targets[key]
-    end
-
-    def [](key)
-      fetch(key)
     end
 
     def []=(key, value)

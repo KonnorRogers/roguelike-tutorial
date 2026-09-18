@@ -23,6 +23,7 @@ module App
         @benchmarks = {}
         @tick_count = 0
         @last_moved_at = 0
+        @debug = true
       end
 
       def tick(...)
@@ -74,7 +75,12 @@ module App
         @graph = @dungeon.graph
         @player = @dungeon.player
         @camera.target_x = @player.x * TILE_SIZE
+        @camera.x = @camera.target_x
         @camera.target_y = @player.y * TILE_SIZE
+        @camera.y = @camera.target_y
+
+        @target_y = @camera.target_y
+        @target_x = @camera.target_x
 
         @health_bar = App::Ui::HealthBar.new(entity: @player, x: 50, y: 50)
         @inventory = App::Ui::Inventory.new(items: @player.inventory)
@@ -87,21 +93,25 @@ module App
         @game_log = GameLog.new
         update_scaled_tiles
         @show_inventory = false
-        @control_states = [:playing, :looking, :targeting]
-        @control_state = :playing
+        @control_states = {
+          playing: :playing,
+          looking: :looking,
+          targeting: :targeting
+        }
+
+        @control_state = @control_states.playing
 
         add_item(:confusion_scroll)
 
         @inventory_buttons = {
           use: proc { |item|
-            @use_item = proc { |target|
+            @use_item = proc do |target|
               did_use = @player.use(item, target)
-              @did_take_turn = did_use
-              @item_menu.open = false
-              @item_menu.item = nil
-              @item_menu.item_index = nil
-              @item_menu.view = :item
-            }
+              if did_use
+                @did_take_turn = did_use
+                reset_item_menu
+              end
+            end
 
             if item.requires_target?
               @control_state = :targeting
@@ -112,32 +122,31 @@ module App
           },
           drop: proc { |item|
             @player.drop(item)
-            @item_menu.open = false
-            @item_menu.item = nil
-            @item_menu.item_index = nil
+            reset_item_menu
           },
           throw: proc { |item|
             did_throw = @player.throw(item)
-            @did_take_turn = did_throw
-            @item_menu.open = false
-            @item_menu.item = nil
-            @item_menu.item_index = nil
+            if did_throw
+              @did_take_turn = true
+              reset_item_menu
+            end
           },
           confirm: proc {
-            if @use_item
-              @use_item.call 
-              @use_item = nil
-              @item_menu.open = false
-              @item_menu.item = nil
-              @item_menu.item_index = nil
-              @did_take_turn = true
-            end
+            @use_item.call(@item_target)
           },
           cancel: proc {
             @use_item = nil
             @item_menu.view = :inventory
+            @control_state = :looking
           }
         }
+      end
+
+      def reset_item_menu
+        @item_menu.reset
+        @control_state = :playing
+        @item_target = nil
+        @use_item = nil
       end
 
       def update_scaled_tiles
@@ -158,7 +167,15 @@ module App
       end
 
       def input
+        @clicked_button = nil
+        @tiled_mouse = @camera.to_world_space(@inputs.mouse)
+        @tiled_mouse.x = (@tiled_mouse.x / TILE_SIZE).floor
+        @tiled_mouse.y = (@tiled_mouse.y / TILE_SIZE).floor
+        @tiled_mouse.w = 1
+        @tiled_mouse.h = 1
+
         @outputs.debug << "#{@control_state}"
+        @outputs.debug << "#{@use_item}"
 
         @did_take_turn = false
         @camera_updated = false
@@ -177,6 +194,7 @@ module App
               if @item_menu.open
                 @control_state = :playing
                 @item_menu.view = :item
+                @use_item = nil
               end
             elsif @item_menu.open
               @control_state = :playing if @control_state != :playing
@@ -192,29 +210,24 @@ module App
 
           if @inputs.mouse.click
             if @show_inventory
-              clicked_button = nil
-
               if @item_menu.open
-                clicked_button = Geometry.find_intersect_rect(@inputs.mouse, @item_menu.rendered_buttons.values)
+                @clicked_button = Geometry.find_intersect_rect(@inputs.mouse, @item_menu.rendered_buttons.values)
 
-                if clicked_button && clicked_button.id
-                  puts "CLICKED: #{clicked_button.id}"
-                  item = @inventory.items[@item_menu.item_index]
-                  @inventory_buttons[clicked_button.id].call(item)
-                end
-
-                if clicked_button == @item_menu.rendered_buttons
+                if @clicked_button && @clicked_button.id
+                  @inventory_buttons[@clicked_button.id].call(@item_menu.item)
                 end
               end
 
               clicked_item = Geometry.find_all_intersect_rect(@inputs.mouse, @inventory.rendered_items)[0]
-              if !clicked_button
+              if !@clicked_button
                 if clicked_item
                   item_index = @inventory.rendered_items.find_index { |item| item == clicked_item }
                   @item_menu.item_index = item_index
                   @item_menu.item = clicked_item
                   @item_menu.open = true
-                else
+                end
+
+                if !clicked_item && @control_state != :targeting
                   @item_menu.open = false
                   @item_menu.item = nil
                   @item_menu.item_index = nil
@@ -258,7 +271,9 @@ module App
                              end
 
             @camera.target_x = @player.x * TILE_SIZE
+            @target_x = @camera.target_x
             @camera.target_y = @player.y * TILE_SIZE
+            @target_y = @camera.target_y
 
             if @did_take_turn
               @last_moved_at = @tick_count
@@ -266,14 +281,11 @@ module App
           end
 
           if keyboard.key_down.z
-            index = @control_states.find_index { |s| s == @control_state }
-            next_index = index + 1
-
-            if next_index > @control_states.length - 1
-              next_index = 0
+            if @control_state == @control_states.looking
+              @control_state = :playing
+            elsif @control_state == @control_states.playing
+              @control_state = :looking
             end
-
-            @control_state = @control_states[next_index]
 
             @camera.target_x = @player.x * TILE_SIZE
             @camera.target_y = @player.y * TILE_SIZE
@@ -282,22 +294,35 @@ module App
           end
 
           if @control_state == :looking || @control_state == :targeting
-            @camera_updated = if key_down.left_arrow || key_down.a
-                                @camera.target_x -= TILE_SIZE
+            @camera_updated = if key_repeat.left_arrow || key_repeat.a
+                                @target_x -= TILE_SIZE
                                 true
-                              elsif key_down.right_arrow || key_down.d
-                                @camera.target_x += TILE_SIZE
+                              elsif key_repeat.right_arrow || key_repeat.d
+                                @target_x += TILE_SIZE
                                 true
-                              elsif key_down.up_arrow || key_down.w
-                                @camera.target_y += TILE_SIZE
+                              elsif key_repeat.up_arrow || key_repeat.w
+                                @target_y += TILE_SIZE
                                 true
-                              elsif key_down.down_arrow || key_down.s
-                                @camera.target_y -= TILE_SIZE
+                              elsif key_repeat.down_arrow || key_repeat.s
+                                @target_y -= TILE_SIZE
                                 true
+                              elsif key_down.enter && @control_state == :targeting && @use_item
+                                @use_item.call(@item_target)
                               end
+
+            # This prevents moving the camera when clicking, feels weird when it happens.
+            if inputs.click && @control_state == :targeting && !@clicked_button
+              @target_x = (@tiled_mouse.x * TILE_SIZE).floor
+              @target_y = (@tiled_mouse.y * TILE_SIZE).floor
+              @camera_updated = true
+            elsif @camera_updated
+              @camera.target_x = @target_x
+              @camera.target_y = @target_y
+            end
 
             @update_fov = @camera_updated
           end
+
 
           # used for rendering FOV
           @update_fov = @update_fov.nil? || @update_fov || @did_take_turn # for first render, check if there's any visible tiles.
@@ -347,9 +372,15 @@ module App
       end
 
       def calc_camera
+        lerp = 0.15
         @camera.scale += (@camera.target_scale - @camera.scale)
-        @camera.x += (@camera.target_x - @camera.x)
-        @camera.y += (@camera.target_y - @camera.y)
+        dx = (@camera.target_x - @camera.x) * lerp
+        dx = 0 if dx.abs <= 0.05
+        dy = (@camera.target_y - @camera.y) * lerp
+        dy = 0 if dy.abs <= 0.05
+
+        @camera.x += dx if dx.abs > 0
+        @camera.y += dy if dy.abs > 0
       end
 
       def calc
@@ -406,12 +437,22 @@ module App
       end
 
       def scale_for_screen(sprite)
-        @camera.to_screen_space(sprite.merge({
-          x: sprite.x * TILE_SIZE,
-          y: sprite.y * TILE_SIZE,
-          w: sprite.w * TILE_SIZE,
-          h: sprite.h * TILE_SIZE
-        }))
+        if sprite.is_a?(Array)
+          Array.map(sprite) { |s| _scale_for_screen(s) }
+        else
+          _scale_for_screen(sprite)
+        end
+      end
+
+      def _scale_for_screen(sprite)
+        cloned_sprite = sprite.clone
+        @camera.to_screen_space!(cloned_sprite.tap do |s|
+          s.x = s.x * TILE_SIZE if s.x
+          s.y = s.y * TILE_SIZE if s.y
+          s.w = s.w * TILE_SIZE if s.w
+          s.h = s.h * TILE_SIZE if s.h
+        end)
+        cloned_sprite
       end
 
       def render
@@ -535,8 +576,8 @@ module App
             }
           }
 
-          x = (@camera.x / TILE_SIZE).floor
-          y = (@camera.y / TILE_SIZE).floor
+          x = (@target_x / TILE_SIZE).floor
+          y = (@target_y / TILE_SIZE).floor
 
           targeting_box = @targeting_box.map do |key, spr|
             _offset = offset
@@ -556,21 +597,17 @@ module App
           target = false
           intersecting_box = @targeting_box.background
 
-          @outputs.debug << "X: #{intersecting_box.x}, Y: #{intersecting_box.y}"
-          @dungeon.visible_entities.each do |entity|
-            next if entity.dead?
-            next if entity == @player
+          item = @item_menu.item
 
-            # entities are stored for as simple numbers, so we don't need to convert
-            if entity.x == (intersecting_box.x / TILE_SIZE).floor && 
-              entity.y == (intersecting_box.y / TILE_SIZE).floor
-              target = true
-              break
-            end
+          if item.targeting_type == :coordinate
+            target = handle_coordinate_targeting(item, intersecting_box)
+          elsif item.targeting_type == :enemy
+            target = handle_enemy_targeting(item, intersecting_box)
           end
 
+          @item_target = target
 
-          if target
+          if target && item.can_use?(@player, target)
             intersecting_box.merge!({
               r: 0,
               g: 255,
@@ -584,14 +621,34 @@ module App
             })
           end
 
-
-          @outputs.debug << "on target: #{target}"
+          # @outputs.debug << "on target: #{target}"
           @draw_buffer[@camera_path].concat(targeting_box)
         else
           @targeting_box = nil
         end
 
         @draw_buffer[@camera_path].concat(render_grid) if @render_pixel_grid
+
+        capture_debug_targets
+      end
+
+      def capture_debug_targets
+        return if !@debug
+
+        args.outputs.debug << "#{@tiled_mouse}"
+
+        return if !@inputs.click
+
+        clicked_targets = []
+
+        Array.each(@dungeon.entities + @visible_and_out_of_view_tiles) do |entity|
+          # entities are stored for as simple numbers, so we don't need to convert
+          if entity.x == @tiled_mouse.x && entity.y == @tiled_mouse.y
+            clicked_targets << entity
+          end
+        end
+
+        $DEBUG = clicked_targets
       end
 
       def draw
@@ -610,10 +667,16 @@ module App
       end
 
       def render_all_tiles
-        entities = Array.map(@dungeon.entities) { |entity| scale_for_screen(entity.serialize) }
+        entities = @dungeon.entities
+          .sort_by(&:draw_order)
+          .map { |entity| scale_for_screen(entity.prefab) }
+          .flatten
 
-        @draw_buffer[@camera_path].concat(Geometry.find_all_intersect_rect(@camera.viewport, @scaled_tiles))
-        @draw_buffer[@camera_path].concat(Geometry.find_all_intersect_rect(@camera.viewport, entities).sort_by(&:draw_order))
+        tiles_in_viewport = Geometry.find_all_intersect_rect(@camera.viewport, @scaled_tiles)
+        @draw_buffer[@camera_path].concat(tiles_in_viewport)
+
+        entities_in_viewport = Geometry.find_all_intersect_rect(@camera.viewport, entities)
+        @draw_buffer[@camera_path].concat(entities_in_viewport)
       end
 
       def render_visible_tiles
@@ -621,7 +684,8 @@ module App
 
         visible_entities = @dungeon.visible_entities
           .sort_by(&:draw_order)
-          .map { |entity| scale_for_screen(entity.serialize) }
+          .map { |entity| scale_for_screen(entity.prefab) }
+          .flatten
 
         @draw_buffer[@camera_path].concat(visible_entities)
       end
@@ -712,6 +776,29 @@ module App
         end
 
         solids
+      end
+
+
+      # For when targeting requires an actual entity
+      def handle_enemy_targeting(item, rect)
+        target = nil
+        @dungeon.visible_entities.each do |entity|
+          next if entity.dead?
+          next if entity.item?
+          next if entity == @player
+
+          # entities are stored for as simple numbers, so we don't need to convert
+          # We could use intersect_rect, but no need since everything is 1x1
+          if entity.x == (rect.x / TILE_SIZE).floor &&
+            entity.y == (rect.y / TILE_SIZE).floor
+            target = entity
+            break
+          end
+        end
+        target
+      end
+
+      def handle_coordinate_targeting(item, rect)
       end
     end
   end

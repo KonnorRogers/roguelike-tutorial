@@ -28,8 +28,8 @@ module App
           @engine = engine
           @max_turns = max_turns
           @name = NAME
-          @maximum_range = 6
-          @requires_target = true
+          @maximum_range = 8
+          @targeting_type = :enemy
           set_sprite
         end
 
@@ -53,18 +53,28 @@ module App
           set_sprite
         end
 
-        def use(consumer, target)
-          target = nil
-          closest_distance = @maximum_range + 1.0
+        def can_use?(consumer, target)
+          return false if !target
 
-          @engine.dungeon.visible_entities.find { |e| e == target }
+          distance = consumer.distance_from(x: target.x, y: target.y)
+
+          return false if distance > @maximum_range
+          return false if !target.is_a?(Enemy)
+
+          true
+        end
+
+        def use(consumer, target)
+          return false if !can_use?(consumer, target)
 
           if target
             @engine.game_log.log(
               "#{target.type} is confused!"
             )
-            @engine.floating_text.add("Confused!", entity: target, color: {r: 0, g: 0, b: 255, a: 255})
-            target.take_damage(consumer, self.damage)
+
+            target.confused = true
+            entity = @engine.scale_for_screen(target.serialize)
+            @engine.floating_text.add("Confused!!", entity: entity, color: {r: 0, g: 0, b: 255, a: 255})
             return true
           end
 

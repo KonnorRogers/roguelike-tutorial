@@ -1,8 +1,9 @@
 module App
   module Entities
     class Entity < SpriteKit::Sprite
-      attr_accessor :engine, :dungeon, :movement_cost, :viewed
-      attr_accessor :center_x, :center_y, :center
+      attr_accessor :engine, :dungeon, :movement_cost, :viewed,
+                    :center_x, :center_y, :center,
+                    :id
 
       def initialize(engine:, **kwargs)
         super(engine: engine, **kwargs)
@@ -13,19 +14,15 @@ module App
         @movement_cost = 10
         @viewed = false
         @item = false
+        @w ||= 1
+        @h ||= 1
+        @id ||= DR.create_uuid
       end
 
       # Return the distance between the current entity and the given (x, y) coordinate.
       def distance_from(x:, y:)
         Math.sqrt((x - @x) ** 2 + (y - @y) ** 2)
       end
-
-      def serialize
-        super.merge!({
-          blendmode_enum: @blendmode_enum || 1
-        })
-      end
-
 
       def collideable?
         @collideable
@@ -38,7 +35,13 @@ module App
       def serialize
         hash = super
         hash.draw_order = draw_order
+        hash.delete(:engine)
+        hash.delete(:dungeon)
         hash
+      end
+
+      def prefab
+        [self]
       end
 
       def draw_order

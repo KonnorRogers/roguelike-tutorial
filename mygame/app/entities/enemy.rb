@@ -107,7 +107,9 @@ module App
         path = []
         max_move_attempts = 1
 
-        if @viewed
+        puts "CONFUSED!!" if self.confused?
+
+        if @viewed && !self.confused?
           max_move_attempts = 8
           target = { x: @dungeon.player.x, y: @dungeon.player.y }
           start = { x: @x, y: @y }
